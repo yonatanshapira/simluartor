@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>מנוע סימולציית חקירות - מצ"ח</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* יבוא פונטים */
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700;900&display=swap');
+
+        html, body { height: 100%; }
+        body {
+            background-color: #050505;
+            overflow: hidden;
+            height: 100vh;
+            height: 100dvh;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- עיצוב למסך הפתיחה (מסוף) --- */
+        .terminal-font { font-family: 'Courier Prime', 'Courier New', Courier, monospace; }
+
+        .terminal-glow {
+            text-shadow: 0 0 5px rgba(34, 197, 94, 0.6), 0 0 10px rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background-color: #22c55e;
+            vertical-align: middle;
+            margin-right: 4px;
+            animation: blink 1s step-end infinite;
+            box-shadow: 0 0 5px rgba(34, 197, 94, 0.8);
+        }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .scanlines {
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            z-index: 50;
+            opacity: 0.4;
+        }
+
+        /* --- עיצוב למשחק המרכזי --- */
+        .game-font { font-family: 'Rubik', sans-serif; color: #f8fafc; }
+
+        .progress-bar-bg {
+            background-color: #334155;
+            border-radius: 9999px;
+            height: 8px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            transition: width 0.5s ease-out, background-color 0.3s ease;
+        }
+
+        .fade-in { opacity: 0; animation: fadeIn 0.5s ease-in forwards; }
+        .fade-out { opacity: 1; animation: fadeOut 0.5s ease-out forwards; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(1.05); }
+        }
+
+        .choice-btn {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 1px solid #334155;
+            transition: all 0.2s ease;
+            min-height: 48px;
+        }
+        .choice-btn:active { transform: scale(0.98); background: #334155; }
+        @media (hover: hover) {
+            .choice-btn:hover { border-color: #3b82f6; background: linear-gradient(145deg, #243349, #111c33); }
+        }
+
+        .touch-btn { min-height: 48px; }
+
+        /* מחוון טעויות */
+        .mistake-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #334155;
+            display: inline-block;
+            margin: 0 2px;
+            transition: background-color 0.3s;
+        }
+        .mistake-dot.active { background-color: #ef4444; box-shadow: 0 0 5px #ef4444; }
+
+        /* שבבי דרגות */
+        .chip {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            background: #334155;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+        }
+        .chip-sgt { background: rgba(30, 64, 175, 0.35); border-color: #3b82f6; color: #bfdbfe; }
+        .chip-off { background: rgba(146, 64, 14, 0.35); border-color: #f59e0b; color: #fde68a; }
+
+        /* התאמה למסכים נמוכים (טלפון במצב לרוחב) */
+        @media (max-height: 520px) {
+            .game-header { position: static !important; }
+        }
+        #game-container { padding-bottom: env(safe-area-inset-bottom); }
+        .safe-pad { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+    </style>
+</head>
+<body class="relative">
+
+    <!-- קווי סריקה (מוחלים על כל המסכים בהתחלה) -->
+    <div id="scanlines-overlay" class="scanlines"></div>
+
+    <!-- ========================================== -->
+    <!--            מסך פתיחה - מסוף טקטי             -->
+    <!-- ========================================== -->
+    <div id="intro-screen" class="absolute inset-0 flex flex-col p-6 z-40 terminal-font bg-black overflow-y-auto">
+        <main class="flex-1 flex flex-col max-w-md md:max-w-xl w-full mx-auto pt-10">
+            <div class="mb-8 border-b border-green-800 pb-2 flex justify-between items-end opacity-70">
+                <span class="text-xs uppercase tracking-widest terminal-glow">SYS.INT.09</span>
+                <span class="text-xs terminal-glow" id="sys-time">00:00:00</span>
+            </div>
+
+            <div id="terminal-output" class="flex flex-col gap-3 text-sm md:text-base terminal-glow mb-8 min-h-[120px]"></div>
+
+            <div id="login-section" class="hidden flex-col gap-6 w-full">
+                <div class="flex flex-col gap-2">
+                    <label for="investigator-name" class="text-sm md:text-base terminal-glow">> הזן שם חוקר מורשה:</label>
+                    <div class="relative">
+                        <input type="text" id="investigator-name" autocomplete="off" maxlength="30" class="w-full bg-black border border-green-600 text-green-400 p-3 outline-none transition-all focus:border-green-400 rounded-sm font-mono terminal-glow" placeholder="שם מלא...">
+                    </div>
+                </div>
+                <button onclick="authenticate()" class="touch-btn w-full bg-green-950/30 hover:bg-green-600 hover:text-black border border-green-600 text-green-500 py-4 font-bold text-lg transition-all rounded-sm flex items-center justify-center gap-2 group">
+                    <span class="terminal-glow group-hover:text-black">התחבר למערכת</span>
+                </button>
+            </div>
+        </main>
+
+        <footer class="max-w-md md:max-w-xl w-full mx-auto text-center pt-3 pb-2 border-t border-green-900/60">
+            <p class="text-xs terminal-glow opacity-80">נוצר על ידי מדור אמצעים וטכנולוגיה</p>
+        </footer>
+    </div>
+
+    <!-- מסך מעבר -->
+    <div id="success-message" class="absolute inset-0 hidden flex-col items-center justify-center z-50 bg-black terminal-font">
+        <svg class="w-20 h-20 text-green-500 mb-4 terminal-glow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <h2 class="text-2xl font-bold terminal-glow mb-2">הרשאה אושרה</h2>
+        <p class="text-green-600" id="welcome-text"></p>
+        <p class="text-green-800 text-xs mt-8">נוצר על ידי מדור אמצעים וטכנולוגיה</p>
+    </div>
+
+    <!-- ========================================== -->
+    <!--        מסך פרופיל חוקר (שמירה והיסטוריה)       -->
+    <!-- ========================================== -->
+    <div id="profile-screen" class="hidden absolute inset-0 overflow-y-auto bg-slate-950 game-font p-4" style="z-index: 40;">
+        <div class="max-w-md md:max-w-xl mx-auto pt-6 pb-8 fade-in">
+            <div class="bg-slate-800 border border-slate-600 rounded-xl p-5 md:p-8 shadow-2xl">
+                <div class="text-center mb-5">
+                    <div class="text-4xl mb-2">🗂️</div>
+                    <h2 class="text-xl md:text-2xl font-bold text-white" id="profile-title">תיק חוקר</h2>
+                    <p class="text-sm text-slate-400 mt-1" id="profile-sub"></p>
+                </div>
+
+                <div id="profile-save-box" class="hidden bg-slate-900 border border-blue-700/60 rounded-lg p-4 mb-4">
+                    <div class="text-xs text-blue-300 font-bold mb-1">קריירה שמורה</div>
+                    <div class="text-slate-200 text-sm" id="profile-save-text"></div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button id="btn-continue" onclick="resumeCareer()" class="hidden touch-btn w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-colors">▶ המשך את הקריירה השמורה</button>
+                    <button onclick="startNewCareer()" class="touch-btn w-full py-3 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white font-bold rounded-lg transition-colors">🆕 קריירה חדשה</button>
+                    <button onclick="openHistory()" class="touch-btn w-full py-3 bg-slate-900 border border-slate-600 hover:border-slate-400 text-slate-200 font-bold rounded-lg transition-colors">📜 היסטוריית חוקר</button>
+                </div>
+                <p class="text-xs text-slate-500 mt-4 text-center leading-relaxed">ההתקדמות נשמרת אוטומטית במכשיר הזה, לפי שם החוקר.<br>קריירה חדשה תשמור את הקודמת בהיסטוריה כ"עזב באמצע".</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!--        מסך היסטוריה                          -->
+    <!-- ========================================== -->
+    <div id="history-screen" class="hidden absolute inset-0 overflow-y-auto bg-slate-950 game-font p-4" style="z-index: 70;">
+        <div class="max-w-md md:max-w-2xl mx-auto pt-4 pb-8 fade-in">
+            <div class="bg-slate-800 border border-slate-600 rounded-xl p-5 md:p-8 shadow-2xl">
+                <div class="text-center mb-4">
+                    <div class="text-4xl mb-2">📜</div>
+                    <h2 class="text-xl md:text-2xl font-bold text-white">היסטוריית חוקר</h2>
+                    <p class="text-sm text-blue-300" id="history-name"></p>
+                </div>
+                <div id="history-summary" class="grid grid-cols-3 gap-2 text-center mb-4"></div>
+                <div id="history-list" class="flex flex-col gap-2 mb-5"></div>
+                <button onclick="closeHistory()" class="touch-btn w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors">חזרה</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!--        מסך הסבר: איך המשחק מתנהל             -->
+    <!-- ========================================== -->
+    <div id="briefing-screen" class="hidden absolute inset-0 overflow-y-auto bg-slate-950 game-font p-4" style="z-index: 40;">
+        <div class="max-w-md md:max-w-2xl mx-auto pb-8 fade-in">
+            <div class="bg-slate-800 border border-slate-600 rounded-xl p-5 md:p-8 shadow-2xl">
+                <div class="text-center mb-4">
+                    <div class="text-4xl mb-2">📖</div>
+                    <h2 class="text-xl md:text-2xl font-bold text-white">מדריך החוקר</h2>
+                    <p class="text-sm text-blue-300">מטוראי ועד פסגת מצ״ח</p>
+                </div>
+
+                <p class="text-slate-300 text-sm md:text-base leading-relaxed mb-4">
+                    מתחילים את הדרך כטוראי בבסיס מצ״ח. בכל חודש מגיע אליך תרחיש מהשטח וצריך להחליט מה עושים.
+                    החלטה נכונה מזכה אותך ב־XP, וכשפס ה־XP מתמלא מתקדמים לדרגה הבאה. החלטה שגויה נרשמת כטעות מקצועית, ואם תצבור יותר מדי מהן, תיפרד מהתפקיד.
+                </p>
+
+                <h3 class="text-white font-bold mb-2 text-sm md:text-base">🗺️ מסלול הקריירה</h3>
+                <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4 flex flex-col gap-3">
+                    <div class="flex flex-wrap items-center gap-1">
+                        <span class="chip">טוראי</span><span class="text-slate-500">←</span>
+                        <span class="chip">רב״ט</span><span class="text-slate-500">←</span>
+                        <span class="text-xs text-slate-300 font-bold">פרשת דרכים</span>
+                    </div>
+                    <div>
+                        <div class="text-xs text-blue-300 font-bold mb-1">🛡️ מסלול סמלים (מקצוענות)</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span class="chip chip-sgt">סמל</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-sgt">סמ״ר</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-sgt">נגד</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-amber-300 font-bold mb-1">⭐ מסלול קצונה</div>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <span class="chip chip-off">מפק״צ</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">סגן מפקד בסיס</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">מב״ס</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">ממ״ר</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">מפקד מצ״ח</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="text-white font-bold mb-2 text-sm md:text-base">⚙️ חוקי המשחק</h3>
+                <ul class="text-slate-300 text-sm md:text-base leading-relaxed flex flex-col gap-2 mb-4 list-disc pr-5">
+                    <li><b class="text-amber-300">XP ודרגות:</b> כל פס XP מלא = דרגה חדשה. <b>כל דרגה קשה יותר מהקודמת:</b> הפס גדל ב־15%, יותר שאלות קשות מופיעות והטעויות עולות ביוקר.</li>
+                    <li><b class="text-amber-300">רמות שאלה:</b> השאלות מגיעות ברמה אקראית. קלה = 10 XP, בינונית = 20 XP, קשה = 35 XP.</li>
+                    <li><b class="text-green-400">אמון פיקוד:</b> עולה בהחלטות נכונות ויורד בטעויות. אפס אמון = הדחה. טוראים ורב״טים מוגנים מירידת אמון.</li>
+                    <li><b class="text-blue-300">מקצוענות:</b> עולה עם כל תשובה נכונה, ומקטינה את הפגיעה באמון כשאתה טועה.</li>
+                    <li><b class="text-red-400">טעויות:</b> 3 ברצף או 10 במצטבר = הדחה מהתפקיד.</li>
+                    <li><b class="text-white">שמירה והיסטוריה:</b> ההתקדמות נשמרת אוטומטית לפי שם החוקר, וכל קריירה שהסתיימה נרשמת בהיסטוריה.</li>
+                    <li><b class="text-white">בדרך:</b> יחכו לך פרשת דרכים אחת, וגם כמה שאלות שמתברר שהן לא ממש שאלות. בהצלחה.</li>
+                </ul>
+
+                <button id="briefing-btn" onclick="closeBriefing()" class="touch-btn w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-lg shadow-md transition-colors">
+                    הבנתי, ממשיכים ➔
+                </button>
+                <p class="text-center text-xs text-slate-500 mt-4">נוצר על ידי מדור אמצעים וטכנולוגיה</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!--            מסך שיבוץ (Pokemon Style)         -->
+    <!-- ========================================== -->
+    <div id="assignment-screen" class="hidden absolute inset-0 flex-col items-center justify-center z-40 bg-slate-950 p-4 game-font overflow-y-auto">
+        <div class="bg-slate-800 border-2 border-slate-600 rounded-xl p-6 md:p-8 w-full max-w-md md:max-w-xl shadow-2xl relative">
+            <div class="absolute -top-4 right-6 bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold shadow">
+                קצין מיון
+            </div>
+
+            <p id="assignment-dialogue" class="text-slate-200 text-lg md:text-xl leading-relaxed mb-6 min-h-[80px]"></p>
+
+            <div id="assignment-form" class="hidden flex-col gap-4 fade-in">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">בחר מרחב מועדף:</label>
+                    <select id="region-select" onchange="updateBases()" class="w-full bg-slate-900 border border-slate-600 text-white p-3 rounded outline-none focus:border-blue-500">
+                        <option value="" disabled selected>-- בחר מרחב --</option>
+                        <option value="north">מרחב צפון</option>
+                        <option value="south">מרחב דרום</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">בחר בסיס (בהתאם למרחב):</label>
+                    <select id="base-select" disabled onchange="enableSubmit()" class="w-full bg-slate-900 border border-slate-600 text-white p-3 rounded outline-none focus:border-blue-500 opacity-50">
+                        <option value="" disabled selected>-- בחר בסיס --</option>
+                    </select>
+                </div>
+
+                <button id="submit-assignment-btn" disabled onclick="submitAssignment()" class="touch-btn mt-4 w-full bg-slate-700 text-slate-400 py-3 font-bold rounded transition-all">
+                    שלח בקשת שיבוץ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- פופאפ צורכי הצבא (הטוויסט) -->
+    <div id="twist-popup" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-4 game-font">
+        <div class="bg-slate-900 border border-red-500 rounded-xl p-6 w-full max-w-sm md:max-w-md text-center shadow-[0_0_30px_rgba(239,68,68,0.3)] fade-in">
+            <div class="text-5xl mb-4">🪖</div>
+            <h3 class="text-xl font-bold text-red-500 mb-3">צורכי הצבא קודמים!</h3>
+            <p id="twist-text" class="text-slate-300 mb-6 leading-relaxed whitespace-pre-wrap"></p>
+            <button onclick="enterMainGame()" class="touch-btn w-full py-3 bg-red-700 hover:bg-red-600 active:bg-red-800 text-white font-bold rounded-lg transition-colors">
+                כן המפקד! (המשך לבסיס)
+            </button>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!--               משחק מרכזי                     -->
+    <!-- ========================================== -->
+    <div id="game-screen" class="hidden absolute inset-0 flex-col bg-slate-950 game-font items-center z-30">
+        <div id="game-container" class="w-full max-w-md md:max-w-2xl lg:max-w-6xl h-full flex flex-col lg:flex-row bg-slate-900 shadow-2xl relative overflow-y-auto lg:overflow-hidden">
+
+            <!-- דשבורד: למעלה בטלפון/טאבלט, בצד במחשב -->
+            <header class="game-header bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-10 shadow-md lg:static lg:w-80 xl:w-96 lg:shrink-0 lg:h-full lg:overflow-y-auto lg:border-b-0 lg:border-l lg:p-6">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <h1 class="text-sm text-slate-400 font-medium">חוקר: <span id="ui-name" class="text-white font-bold"></span> | <span id="ui-base" class="text-blue-300 font-bold"></span></h1>
+                        <h2 class="text-xs text-slate-400 mt-1">חודש <span id="ui-month" class="text-white font-bold text-base">1</span> · רמת קושי <span id="ui-diff" class="text-red-300 font-bold">1</span></h2>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openBriefing()" aria-label="מדריך" class="w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 text-base leading-none">📖</button>
+                        <button onclick="openHistory()" aria-label="היסטוריה" class="w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 text-base leading-none">📜</button>
+                        <span class="px-2 py-1 bg-blue-900/50 border border-blue-700 text-blue-300 rounded text-sm font-bold shadow-sm" id="ui-rank">טוראי</span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/50 flex flex-col gap-3">
+                    <!-- XP -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">XP לדרגה הבאה: <span id="ui-next-rank" class="text-amber-300 font-bold"></span></span>
+                            <span class="font-bold text-amber-400" id="ui-xp-val">0/40</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="bar-xp" class="progress-bar-fill bg-amber-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 lg:grid-cols-1 gap-4">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">אמון פיקוד</span>
+                                <span class="font-bold text-green-400" id="ui-trust-val">50%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="bar-trust" class="progress-bar-fill bg-green-500" style="width: 50%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">מקצוענות</span>
+                                <span class="font-bold text-blue-300" id="ui-prof-val">20</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="bar-prof" class="progress-bar-fill bg-blue-500" style="width: 20%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col justify-center gap-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">רצף טעויות (פסילה ב-3):</span>
+                            <div id="ui-cons-dots">
+                                <span class="mistake-dot"></span><span class="mistake-dot"></span><span class="mistake-dot"></span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-400">סה"כ טעויות (<span id="ui-tot-mistakes">0</span>/<span id="ui-max-total">10</span>):</span>
+                            <div class="w-16 bg-slate-700 h-2 rounded-full overflow-hidden">
+                                <div id="bar-tot-mistakes" class="bg-red-500 h-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <p class="hidden lg:block text-xs text-slate-500 mt-4 leading-relaxed">טיפ למקלדת: מקשי 1-3 לבחירת תשובה, Enter להמשך.</p>
+            </header>
+
+            <!-- אזור התוכן -->
+            <main class="flex-1 p-4 md:p-6 lg:p-10 safe-pad relative flex flex-col lg:overflow-y-auto">
+
+                <!-- תצוגת תרחיש -->
+                <div id="view-scenario" class="fade-in flex-1 flex flex-col w-full max-w-2xl mx-auto">
+                    <div class="bg-slate-800 rounded-xl p-5 md:p-7 shadow-lg border border-slate-700 mb-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-1 h-full bg-blue-500"></div>
+                        <span id="scenario-level" class="inline-block text-xs px-2 py-1 rounded border font-bold mb-3"></span>
+                        <h3 class="text-xl md:text-2xl font-bold text-white mb-3" id="scenario-title">כותרת</h3>
+                        <p class="text-slate-300 text-sm md:text-base lg:text-lg leading-relaxed" id="scenario-desc">תיאור</p>
+                    </div>
+
+                    <div id="choices-container" class="flex flex-col gap-3 mt-auto mb-4"></div>
+                </div>
+
+                <!-- תצוגת אירוע מיוחד -->
+                <div id="view-event" class="hidden flex-1 flex flex-col w-full max-w-2xl mx-auto">
+                    <div class="bg-slate-800 rounded-xl p-5 md:p-7 shadow-lg border border-amber-600/60 mb-6 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-1 h-full bg-amber-500"></div>
+                        <h3 class="text-xl md:text-2xl font-bold text-amber-300 mb-3" id="event-title">אירוע</h3>
+                        <p class="text-slate-300 text-sm md:text-base lg:text-lg leading-relaxed whitespace-pre-wrap" id="event-desc"></p>
+                    </div>
+                    <div id="event-choices" class="flex flex-col gap-3 mt-auto mb-4"></div>
+                </div>
+
+                <!-- תצוגת משוב -->
+                <div id="view-feedback" class="hidden flex-1 flex flex-col justify-center items-center text-center">
+                    <div class="bg-slate-800 rounded-xl p-6 md:p-8 shadow-lg border border-slate-700 w-full max-w-sm md:max-w-lg">
+                        <div id="feedback-icon" class="text-5xl mb-4"></div>
+                        <h3 class="text-xl md:text-2xl font-bold text-white mb-4" id="feedback-title">תוצאה</h3>
+                        <p class="text-slate-300 text-base md:text-lg mb-6" id="feedback-text">טקסט משוב...</p>
+
+                        <div class="flex flex-col items-center gap-1 mb-6 text-sm md:text-base font-medium border-t border-slate-700 pt-4" id="feedback-impact"></div>
+
+                        <button onclick="nextMonth()" id="next-btn" class="touch-btn w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-md transition-colors">
+                            המשך לחודש הבא ➔
+                        </button>
+                    </div>
+                </div>
+
+                <!-- מסך הדחה -->
+                <div id="view-gameover" class="hidden flex-1 flex flex-col justify-center items-center text-center">
+                    <div class="bg-red-900/20 border border-red-700 rounded-xl p-6 md:p-8 w-full max-w-sm md:max-w-lg">
+                        <div class="text-6xl mb-4">🚨</div>
+                        <h3 class="text-2xl font-bold text-red-500 mb-2">הודחת מהתפקיד</h3>
+                        <p class="text-slate-200 mb-6" id="gameover-text">סיבת ההדחה תופיע כאן</p>
+                        <div class="flex flex-col gap-3">
+                            <button onclick="location.reload()" class="touch-btn w-full py-3 bg-red-700 hover:bg-red-600 text-white font-bold rounded-lg">התחל קריירה מחדש</button>
+                            <button onclick="openHistory()" class="touch-btn w-full py-3 bg-slate-800 border border-slate-600 text-slate-200 font-bold rounded-lg">📜 היסטוריית חוקר</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- מסך ניצחון -->
+                <div id="view-victory" class="hidden flex-1 flex flex-col justify-center items-center text-center">
+                    <div class="bg-emerald-900/20 border border-emerald-600 rounded-xl p-6 md:p-8 w-full max-w-sm md:max-w-lg">
+                        <div class="text-6xl mb-4">🏆</div>
+                        <h3 class="text-2xl font-bold text-emerald-400 mb-2" id="victory-title">סיימת את הקריירה</h3>
+                        <p class="text-slate-200 mb-4 leading-relaxed" id="victory-text"></p>
+                        <div class="text-sm text-slate-400 border-t border-slate-700 pt-3 mb-6" id="victory-stats"></div>
+                        <div class="flex flex-col gap-3">
+                            <button onclick="location.reload()" class="touch-btn w-full py-3 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-lg">שחק שוב</button>
+                            <button onclick="openHistory()" class="touch-btn w-full py-3 bg-slate-800 border border-slate-600 text-slate-200 font-bold rounded-lg">📜 היסטוריית חוקר</button>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 0. אחסון: שמירה והיסטוריה לכל שחקן
+        // ==========================================
+        const STORE_KEY = 'mtzach_sim_v2';
+        let memStore = null; // גיבוי בזיכרון אם localStorage חסום
+
+        function readStore() {
+            try {
+                const raw = localStorage.getItem(STORE_KEY);
+                const s = raw ? JSON.parse(raw) : { players: {} };
+                if (!s.players) s.players = {};
+                return s;
+            } catch (e) {
+                return memStore || (memStore = { players: {} });
+            }
+        }
+        function writeStore(s) {
+            memStore = s;
+            try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) { /* ממשיכים בלי שמירה קבועה */ }
+        }
+        function pkey(name) { return name.trim().toLowerCase(); }
+        function getPlayer(name) { return readStore().players[pkey(name)] || null; }
+        function updatePlayer(name, fn) {
+            const s = readStore();
+            const k = pkey(name);
+            const p = s.players[k] || { name: name, save: null, history: [] };
+            fn(p);
+            p.name = name;
+            s.players[k] = p;
+            writeStore(s);
+        }
+
+        // שמירת מצב המשחק (awaitingNext = המשתמש ענה וממתין למעבר הלאה)
+        function saveGame(awaitingNext) {
+            if (!state.name) return;
+            const { current, ...rest } = state;
+            const snap = Object.assign({}, rest, {
+                usedIds: Array.from(usedIds),
+                awaitingNext: !!awaitingNext,
+                currentId: current ? current.id : null
+            });
+            updatePlayer(state.name, p => { p.save = { savedAt: Date.now(), data: snap }; });
+        }
+
+        function recordFrom(d, outcome, note) {
+            const entry = {
+                ts: Date.now(),
+                outcome: outcome,
+                rank: RANKS[d.rankId].name,
+                path: d.path || null,
+                months: d.month,
+                trust: d.trust,
+                prof: d.prof,
+                mistakes: d.totalMistakes,
+                base: d.base || '',
+                note: note || ''
+            };
+            updatePlayer(state.name, p => {
+                p.history.unshift(entry);
+                p.history = p.history.slice(0, 50);
+                p.save = null;
+            });
+        }
+
+        // ==========================================
+        // 1. לוגיקת מסך הפתיחה (Terminal Intro)
+        // ==========================================
+        const linesToType = [
+            'מתחבר לשרת יחידת מצ"ח 6015...',
+            'מתחבר למערכת מגדלור...',
+            'מאמת הרשאות חוקר...'
+        ];
+
+        let currentLine = 0;
+
+        setInterval(() => {
+            document.getElementById('sys-time').innerText = new Date().toLocaleTimeString('he-IL', { hour12: false });
+        }, 1000);
+
+        function typeString(text, container, callback) {
+            let i = 0;
+            container.innerHTML = '<span class="cursor" id="typing-cursor"></span>';
+            const cursorNode = document.getElementById('typing-cursor');
+
+            const interval = setInterval(() => {
+                if (i < text.length) {
+                    container.insertBefore(document.createTextNode(text.charAt(i)), cursorNode);
+                    i++;
+                } else {
+                    clearInterval(interval);
+                    if (cursorNode) cursorNode.remove();
+                    setTimeout(callback, 500);
+                }
+            }, 40);
+        }
+
+        function runTerminalSequence() {
+            if (currentLine < linesToType.length) {
+                const lineDiv = document.createElement('div');
+                document.getElementById('terminal-output').appendChild(lineDiv);
+                typeString("> " + linesToType[currentLine], lineDiv, () => {
+                    currentLine++;
+                    runTerminalSequence();
+                });
+            } else {
+                setTimeout(() => {
+                    document.getElementById('login-section').classList.remove('hidden');
+                    document.getElementById('login-section').classList.add('fade-in');
+                    document.getElementById('investigator-name').focus();
+                }, 500);
+            }
+        }
+
+        function authenticate() {
+            const nameInput = document.getElementById('investigator-name').value.trim();
+            if (!nameInput) {
+                document.getElementById('investigator-name').style.borderColor = '#ef4444';
+                setTimeout(() => document.getElementById('investigator-name').style.borderColor = '', 500);
+                return;
+            }
+
+            state.name = nameInput;
+            document.getElementById('welcome-text').innerText = `ברוך שובך, חוקר ${nameInput}.`;
+            document.getElementById('intro-screen').classList.add('fade-out');
+
+            setTimeout(() => {
+                document.getElementById('success-message').classList.remove('hidden');
+                document.getElementById('success-message').classList.add('flex', 'fade-in');
+
+                setTimeout(afterLogin, 1500);
+            }, 500);
+        }
+
+        window.onload = () => setTimeout(runTerminalSequence, 500);
+
+        function afterLogin() {
+            document.getElementById('success-message').classList.add('hidden');
+            document.getElementById('intro-screen').classList.add('hidden');
+            document.getElementById('scanlines-overlay').classList.add('hidden');
+            const p = getPlayer(state.name);
+            if (p && (p.save || p.history.length)) showProfile(p);
+            else showBriefing();
+        }
+
+        // ==========================================
+        // 1.1 פרופיל חוקר והיסטוריה
+        // ==========================================
+        function fmtDate(ts) {
+            try { return new Date(ts).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit' }); }
+            catch (e) { return ''; }
+        }
+
+        function showProfile(p) {
+            document.getElementById('profile-title').textContent = `תיק חוקר: ${state.name}`;
+            document.getElementById('profile-sub').textContent = p.history.length
+                ? `${p.history.length} קריירות בהיסטוריה`
+                : 'עדיין אין קריירות בהיסטוריה';
+
+            const box = document.getElementById('profile-save-box');
+            const cont = document.getElementById('btn-continue');
+            if (p.save) {
+                const d = p.save.data;
+                document.getElementById('profile-save-text').textContent =
+                    `${RANKS[d.rankId].name} · ${d.base || 'טרם שובצת'} · חודש ${d.month} · נשמר ב־${fmtDate(p.save.savedAt)}`;
+                box.classList.remove('hidden');
+                cont.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+                cont.classList.add('hidden');
+            }
+            document.getElementById('profile-screen').classList.remove('hidden');
+        }
+
+        function startNewCareer() {
+            const p = getPlayer(state.name);
+            if (p && p.save) recordFrom(p.save.data, 'abandoned');
+            Object.assign(state, newState(state.name));
+            usedIds.clear();
+            document.getElementById('profile-screen').classList.add('hidden');
+            showBriefing();
+        }
+
+        function resumeCareer() {
+            const p = getPlayer(state.name);
+            if (!p || !p.save) return;
+            const d = p.save.data;
+            const { usedIds: u, awaitingNext, currentId, ...rest } = d;
+            Object.assign(state, newState(state.name), rest, { current: null });
+            usedIds.clear();
+            (u || []).forEach(i => usedIds.add(i));
+
+            document.getElementById('profile-screen').classList.add('hidden');
+            showGameScreen();
+            updateUI();
+
+            if (state.pending) return nextMonth();
+            if (awaitingNext) {
+                state.month++;
+                updateUI();
+                renderScenario();
+                showView('view-scenario');
+                return;
+            }
+            const q = (currentId !== null && QUESTIONS[currentId]) ? QUESTIONS[currentId] : null;
+            renderScenario(q);
+            showView('view-scenario');
+        }
+
+        const OUTCOME = {
+            won:       { icon: '🏆', label: 'סיים בהצלחה', cls: 'text-emerald-400' },
+            fired:     { icon: '🚨', label: 'הודח',        cls: 'text-red-400' },
+            abandoned: { icon: '🚪', label: 'עזב באמצע',   cls: 'text-slate-400' }
+        };
+
+        function openHistory() {
+            renderHistory();
+            document.getElementById('history-screen').classList.remove('hidden');
+        }
+        function closeHistory() {
+            document.getElementById('history-screen').classList.add('hidden');
+        }
+
+        function renderHistory() {
+            const p = getPlayer(state.name) || { history: [] };
+            const h = p.history;
+            document.getElementById('history-name').textContent = state.name;
+
+            const wins = h.filter(e => e.outcome === 'won').length;
+            const fired = h.filter(e => e.outcome === 'fired').length;
+            const sum = document.getElementById('history-summary');
+            sum.innerHTML = '';
+            [['קריירות', h.length, 'text-white'], ['סיום מוצלח', wins, 'text-emerald-400'], ['הדחות', fired, 'text-red-400']].forEach(([label, val, cls]) => {
+                const cell = document.createElement('div');
+                cell.className = 'bg-slate-900 border border-slate-700 rounded-lg py-2';
+                cell.innerHTML = `<div class="text-xl font-bold ${cls}">${val}</div><div class="text-xs text-slate-400">${label}</div>`;
+                sum.appendChild(cell);
+            });
+
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            if (!h.length) {
+                const empty = document.createElement('p');
+                empty.className = 'text-center text-slate-400 text-sm py-4';
+                empty.textContent = 'עדיין אין קריירות שהסתיימו. הקריירה הנוכחית תירשם כאן כשתסתיים.';
+                list.appendChild(empty);
+                return;
+            }
+            h.forEach(e => {
+                const o = OUTCOME[e.outcome] || OUTCOME.abandoned;
+                const row = document.createElement('div');
+                row.className = 'bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm';
+                const path = e.path === 'sgt' ? ' · מסלול סמלים' : e.path === 'off' ? ' · מסלול קצונה' : '';
+                const head = document.createElement('div');
+                head.className = 'flex justify-between items-center mb-1';
+                head.innerHTML = `<span class="font-bold ${o.cls}">${o.icon} ${o.label}</span>`;
+                const date = document.createElement('span');
+                date.className = 'text-xs text-slate-500';
+                date.textContent = fmtDate(e.ts);
+                head.appendChild(date);
+                const body = document.createElement('div');
+                body.className = 'text-slate-300 text-xs leading-relaxed';
+                body.textContent = `דרגה: ${e.rank}${path} · ${e.base ? e.base + ' · ' : ''}${e.months} חודשים · אמון ${e.trust}% · מקצוענות ${e.prof} · ${e.mistakes} טעויות`;
+                row.appendChild(head);
+                row.appendChild(body);
+                if (e.note) {
+                    const note = document.createElement('div');
+                    note.className = 'text-xs text-slate-500 mt-1';
+                    note.textContent = e.note;
+                    row.appendChild(note);
+                }
+                list.appendChild(row);
+            });
+        }
+
+        // ==========================================
+        // 1.2 מסך הסבר (איך המשחק מתנהל)
+        // ==========================================
+        let briefingMode = 'intro';
+
+        function showBriefing() {
+            briefingMode = 'intro';
+            document.getElementById('success-message').classList.add('hidden');
+            document.getElementById('intro-screen').classList.add('hidden');
+            document.getElementById('scanlines-overlay').classList.add('hidden');
+            document.getElementById('briefing-btn').innerText = 'הבנתי, ממשיכים לשיבוץ ➔';
+            document.getElementById('briefing-screen').style.zIndex = 40;
+            document.getElementById('briefing-screen').classList.remove('hidden');
+        }
+
+        function openBriefing() {
+            briefingMode = 'game';
+            document.getElementById('briefing-btn').innerText = 'חזרה למשחק';
+            document.getElementById('briefing-screen').style.zIndex = 60;
+            document.getElementById('briefing-screen').classList.remove('hidden');
+        }
+
+        function closeBriefing() {
+            document.getElementById('briefing-screen').classList.add('hidden');
+            if (briefingMode === 'intro') showAssignmentScreen(state.name);
+        }
+
+        // ==========================================
+        // 1.5. לוגיקת מסך שיבוץ (קצין מיון)
+        // ==========================================
+        const basesData = {
+            north: ["מצ״ח חוף", "מצ״ח גליל", "ימ״ר צפון"],
+            south: ["מצ״ח ב״ש", "מצ״ח יואב", "ימ״ר דרום"]
+        };
+
+        function showAssignmentScreen(playerName) {
+            state.name = playerName;
+
+            const assignScreen = document.getElementById('assignment-screen');
+            assignScreen.classList.remove('hidden');
+            assignScreen.classList.add('flex', 'fade-in');
+
+            const dialogueBox = document.getElementById('assignment-dialogue');
+            const text = `שלום החוקר ${playerName}! סיימת קורס חוקרים בהצטיינות וכעת הגעת לשטח. באיזה בסיס תרצה לשרת?`;
+
+            let i = 0;
+            dialogueBox.textContent = '';
+            const interval = setInterval(() => {
+                if (i < text.length) {
+                    dialogueBox.textContent += text.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(interval);
+                    document.getElementById('assignment-form').classList.remove('hidden');
+                    document.getElementById('assignment-form').classList.add('flex');
+                }
+            }, 40);
+        }
+
+        function updateBases() {
+            const region = document.getElementById('region-select').value;
+            const baseSelect = document.getElementById('base-select');
+            const btn = document.getElementById('submit-assignment-btn');
+
+            baseSelect.innerHTML = '<option value="" disabled selected>-- בחר בסיס --</option>';
+
+            btn.disabled = true;
+            btn.className = "touch-btn mt-4 w-full bg-slate-700 text-slate-400 py-3 font-bold rounded transition-all";
+
+            if (region && basesData[region]) {
+                basesData[region].forEach(base => {
+                    const option = document.createElement('option');
+                    option.value = base;
+                    option.innerText = base;
+                    baseSelect.appendChild(option);
+                });
+                baseSelect.disabled = false;
+                baseSelect.classList.remove('opacity-50');
+            }
+        }
+
+        function enableSubmit() {
+            const btn = document.getElementById('submit-assignment-btn');
+            btn.disabled = false;
+            btn.className = "touch-btn mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white py-3 font-bold rounded shadow-md transition-all";
+        }
+
+        function submitAssignment() {
+            const selectedRegion = document.getElementById('region-select').value;
+
+            // הטוויסט: בוחרים מהמרחב הנגדי!
+            const oppositeRegion = selectedRegion === 'north' ? 'south' : 'north';
+            const oppositeBases = basesData[oppositeRegion];
+            const randomBase = oppositeBases[Math.floor(Math.random() * oppositeBases.length)];
+
+            state.base = randomBase;
+
+            const regionNameHe = selectedRegion === 'north' ? 'צפון' : 'דרום';
+            const popupText = `בקשתך לשרת במרחב ${regionNameHe} התקבלה ונבחנה ברצינות.\n\nאך לצערנו, עקב צורכי הצבא ומחסור בכוח אדם במרחב הנגדי, שובצת לשרת ב-${randomBase}.\n\nבהצלחה בתפקיד!`;
+
+            document.getElementById('twist-text').innerText = popupText;
+            document.getElementById('twist-popup').classList.remove('hidden');
+        }
+
+        function showGameScreen() {
+            document.getElementById('scanlines-overlay').classList.add('hidden');
+            document.getElementById('intro-screen').classList.add('hidden');
+            document.getElementById('success-message').classList.add('hidden');
+            const gameScreen = document.getElementById('game-screen');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex', 'fade-in');
+        }
+
+        function enterMainGame() {
+            document.getElementById('twist-popup').classList.add('hidden');
+            document.getElementById('assignment-screen').classList.add('hidden');
+            showGameScreen();
+            updateUI();
+            renderScenario();
+            showView('view-scenario');
+        }
+
+        // ==========================================
+        // 2. נתוני המשחק: דרגות, רמות ושאלות
+        // ==========================================
+
+        // next: מזהה הדרגה הבאה, או אירוע מיוחד (BRANCH / SIGN / END)
+        const RANKS = {
+            private:  { name: 'טוראי',          next: 'corporal' },
+            corporal: { name: 'רב״ט',           next: 'BRANCH' },
+            // מסלול סמלים
+            sergeant: { name: 'סמל',            next: 'SIGN' },
+            ssg:      { name: 'סמ״ר',           next: 'nagad' },
+            nagad:    { name: 'נגד',            next: 'END' },
+            // מסלול קצונה
+            lt:       { name: 'מפק״צ',          next: 'deputy' },
+            deputy:   { name: 'סגן מפקד בסיס',  next: 'basecmd' },
+            basecmd:  { name: 'מב״ס',           next: 'areacmd' },
+            areacmd:  { name: 'ממ״ר',           next: 'chief' },
+            chief:    { name: 'מפקד מצ״ח',      next: 'END' }
+        };
+
+        const JUNIOR_RANKS = ['private', 'corporal'];
+
+        // פס ה-XP גדל ב-15% בכל קידום
+        function xpNeeded() {
+            return Math.max(40, Math.round(40 * Math.pow(1.15, state.promotions) / 5) * 5);
+        }
+
+        // רמות שאלה: XP, אמון, מקצוענות ועונש אמון בסיסי
+        const LEVELS = {
+            easy:   { label: 'קלה',     xp: 10, gain: 3,  loss: 8,  prof: 2, cls: 'bg-green-900/40 text-green-300 border-green-700' },
+            medium: { label: 'בינונית', xp: 20, gain: 6,  loss: 12, prof: 4, cls: 'bg-amber-900/40 text-amber-300 border-amber-700' },
+            hard:   { label: 'קשה',     xp: 35, gain: 10, loss: 18, prof: 6, cls: 'bg-red-900/40 text-red-300 border-red-700' }
+        };
+
+        const c = (text, ok, fb) => ({ text, ok, fb });
+
+        const QUESTIONS = [
+            // ---------- רמה קלה ----------
+            {
+                level: 'easy', title: 'תלונה בדלפק',
+                desc: 'חייל צעיר מגיע לדלפק ומספר שנגנב לו ציוד מהחדר. הוא ממהר ומבקש שתרשום "משהו קצר" ותסגור עניין. מה עושה חוקר מקצועי?',
+                choices: [
+                    c('לגבות תלונה מסודרת, לרשום את כל הפרטים ולפתוח תיק במערכת.', true, 'נכון. תלונה מתועדת כראוי היא הבסיס לכל חקירה.'),
+                    c('לרשום שורה אחת ולהמשיך הלאה, הוא ממילא ממהר.', false, 'תלונה חלקית פוגעת בחקירה ובמתלונן. חוקר לא מקצר תהליכים.'),
+                    c('להגיד לו להתלונן קודם למפקד שלו ולחזור אם יהיה צורך.', false, 'חובתך לקבל את התלונה. הפניה החוצה היא זלזול בתפקיד.')
+                ]
+            },
+            {
+                level: 'easy', title: 'אבטחת זירה',
+                desc: 'הגעת ראשון לזירת פריצה לנשקייה. כמה חיילים סקרנים כבר נכנסו לבדוק מה קרה. מה הצעד הראשון?',
+                choices: [
+                    c('לסגור ולאבטח את הזירה, לרשום מי נכנס ויצא ולהמתין לזיהוי פלילי.', true, 'מצוין. זירה מאובטחת היא ראיות שמישות.'),
+                    c('לבקש מהחיילים לעזור לך לחפש ראיות כדי לחסוך זמן.', false, 'ידיים לא מקצועיות בזירה הן מתכון לזיהום ראיות.'),
+                    c('לצלם בנייד האישי ולעזוב לכתוב דוח.', false, 'עזיבת זירה פתוחה פוגעת בראיות, והנייד האישי אינו אמצעי תיעוד מורשה.')
+                ]
+            },
+            {
+                level: 'easy', title: 'אזהרה לפני חקירה',
+                desc: 'עצרת חשוד ועוד רגע מתחילה החקירה. הוא נראה רגוע ואומר "אין לי מה להסתיר". האם צריך להזהיר אותו?',
+                choices: [
+                    c('כן, להזהיר לפי הנוהל: אינו חייב להשיב, ומה שיאמר עלול לשמש נגדו.', true, 'נכון. אזהרה תקינה היא תנאי לקבילות החקירה.'),
+                    c('לא, אם הוא משתף פעולה אפשר לדלג על הפורמליות.', false, 'שיתוף פעולה לא מבטל את חובת האזהרה.'),
+                    c('להזהיר רק אם הוא יבקש.', false, 'החובה להזהיר היא שלך, לא בהחלטתו של החשוד.')
+                ]
+            },
+            {
+                level: 'easy', title: 'תיעוד מוצג',
+                desc: 'אספת סכין מהזירה. איך תתעד אותה בטופס המוצגים?',
+                choices: [
+                    c('לרשום תיאור מפורט, מקום המציאה, שעה, ומי אסף ומי החזיק במוצג.', true, 'שרשרת מוצג מלאה היא מה שמחזיק את הראיה בבית הדין.'),
+                    c('לרשום "סכין" ולהניח אותה במגירה.', false, 'תיאור לקוי ושרשרת חסרה הופכים ראיה לפסילה בהמתנה.'),
+                    c('לשמור את הסכין בתיק שלך עד שיהיה זמן לרשום.', false, 'מוצג שמסתובב ללא תיעוד פוגע בשרשרת ובנוהל האחזקה.')
+                ]
+            },
+            {
+                level: 'easy', title: 'סודיות החקירה',
+                desc: 'מפקד היחידה של חייל חשוד מתקשר ומבקש "עדכון קטן" איפה התיק עומד. מה עושה?',
+                choices: [
+                    c('לא למסור פרטי חקירה ולהפנות אותו לגורמים המוסמכים.', true, 'נכון. סודיות החקירה גוברת על סקרנות, גם של מפקדים.'),
+                    c('למסור לו תמונת מצב כללית, הוא ממילא מפקד.', false, 'דליפה כזו עלולה לשבש את החקירה ולאפשר טיוח.'),
+                    c('לשלוח לו את החומר במייל, כדי שיהיה מסודר.', false, 'חומר חקירה לא נשלח לסביבת החשוד.')
+                ]
+            },
+            {
+                level: 'easy', title: 'פתיחת הקלטה',
+                desc: 'לפני תחילת חקירה אתה מכין את החדר. מה צריך להיות הדבר הראשון שנאמר בהקלטה?',
+                choices: [
+                    c('תאריך, שעה, מקום ופרטי כל הנוכחים בחדר.', true, 'פתיחה תקינה מונעת טענות על חקירה שלא תועדה כראוי.'),
+                    c('להפעיל הקלטה רק כשמגיעים לשאלות החשובות.', false, 'הקלטה חלקית מאפשרת לסנגור לטעון שמשהו הוסתר.'),
+                    c('לא להקליט, ולסכם בכתב בסוף מהזיכרון.', false, 'סיכום מהזיכרון הוא חולשה גדולה מול בית הדין.')
+                ]
+            },
+            {
+                level: 'easy', title: 'קצין סקרן בזירה',
+                desc: 'קצין שאינו קשור לתיק מגיע לזירה ומבקש להיכנס "רק להציץ". מה עושה?',
+                choices: [
+                    c('לבדוק זיהוי ותפקיד. מי שאין לו עניין בזירה לא נכנס, ומי שנכנס נרשם ביומן הזירה.', true, 'נכון. כל כניסה לזירה נרשמת, בלי קשר לדרגה.'),
+                    c('להכניס אותו, הוא קצין.', false, 'דרגה אינה היתר כניסה לזירה, וכל אדם נוסף מגדיל את סיכון הזיהום.'),
+                    c('להכניס אותו בלי לרשום כדי לא להעליב.', false, 'כניסה שלא נרשמה היא חור ביומן הזירה שהסנגור ימצא.')
+                ]
+            },
+            {
+                level: 'easy', title: 'חשוד שלא הבין',
+                desc: 'אתה מזהיר חשוד לפני החקירה, והוא נראה מבולבל ואומר שהוא לא ממש הבין מה אמרת. מה עושה?',
+                choices: [
+                    c('להסביר שוב בפשטות, לוודא שהבין ולתעד את ההסבר בהקלטה.', true, 'מצוין. אזהרה שלא הובנה היא אזהרה שלא ניתנה.'),
+                    c('להמשיך, הרי הוא חתם על הטופס.', false, 'חתימה בלי הבנה לא מחזיקה בבית הדין.'),
+                    c('לדלג על האזהרה כדי לא להלחיץ אותו.', false, 'דילוג על האזהרה פוסל את הקבילות של כל מה שיאמר.')
+                ]
+            },
+            {
+                level: 'easy', title: 'ציוד ההקלטה',
+                desc: 'עוד חמש דקות חקירה חשובה. אתה לא בטוח שמכשיר ההקלטה תקין. מה עושה?',
+                choices: [
+                    c('לבדוק הקלטת ניסיון, לוודא סוללה ואחסון, ולהכין מכשיר גיבוי.', true, 'מקצועי. חקירה שלא הוקלטה בגלל סוללה היא חקירה בסכנה.'),
+                    c('להניח שזה בסדר, זה תמיד עבד.', false, 'תקלה שמתגלה אחרי החקירה כבר לא ניתנת לתיקון.'),
+                    c('להקליט בנייד האישי ולהעביר אחר כך לתיק.', false, 'תיעוד חקירה נעשה באמצעים מורשים בלבד.')
+                ]
+            },
+            {
+                level: 'easy', title: 'הפסקה בחקירה',
+                desc: 'החקירה נמשכת שעה וחצי והחשוד מבקש מים ושירותים. מה עושה?',
+                choices: [
+                    c('לאפשר הפסקה סבירה, ולתעד אותה בהקלטה ובדוח.', true, 'נכון. תנאים סבירים הם חלק מחקירה כשרה.'),
+                    c('להגיד לו שאחרי שיענה על עוד כמה שאלות.', false, 'שימוש בצרכים בסיסיים כמנוף לחץ פוסל את החקירה.'),
+                    c('להתעלם עד שיסתיים הנושא.', false, 'התעלמות מבקשה סבירה היא התנהגות פסולה.')
+                ]
+            },
+
+            // ---------- רמה בינונית ----------
+            {
+                level: 'medium', title: 'תפיסת מכשיר סלולרי בזירה',
+                desc: 'הגעת לזירת אירוע ומצאת מכשיר סלולרי ששייך לחשוד מרכזי. על המסך קופצות התראות על הודעות חדשות. מה הפעולה הראשונה שעליך לבצע?',
+                choices: [
+                    c('להכניס לשקית אטומה לאותות (פראדיי) ולהחתים שרשרת מוצג.', true, 'החלטה מקצועית. שמרת על תקינות הראיה מול בית הדין ומנעת מחיקת נתונים מרחוק.'),
+                    c('לפתוח את המכשיר ולקרוא את ההודעות הקופצות כדי לקבל כיוון.', false, 'טעות חמורה! זיהמת את הראיה ופגעת בקבילות שלה. הנהלים אוסרים חיטוט ללא צו.'),
+                    c('לכבות את המכשיר ולשים בכיס עד ההגעה לתחנה.', false, 'שגיאה מקצועית. כיבוי עלול לנעול את המכשיר, ואי הכנסה לשקית פראדיי פוגעת בשרשרת המוצג.')
+                ]
+            },
+            {
+                level: 'medium', title: 'חקירת נגד - קצין בכיר',
+                desc: 'אתה חוקר קצין בדרגת סא״ל בחשד לעבירות רכוש. במהלך החקירה הוא מתעצבן, דופק על השולחן ודורש להפסיק את ההקלטה כי "הוא רוצה לסגור את זה בנינו".',
+                choices: [
+                    c('להסכים לעצור את ההקלטה לדקה כדי להרגיע אותו.', false, 'אסור בשום אופן להפסיק הקלטת חקירה! כל מה שנאמר מחוץ להקלטה אינו קביל ויכול לשמש עילה לפסילת החקירה.'),
+                    c('להבהיר לו שההקלטה ממשיכה וכל ניסיון שיבוש יירשם.', true, 'מצוין. לא נכנעת לדרגות על הכתפיים שלו ושמרת על טוהר החקירה.'),
+                    c('לצאת מהחדר ולבקש ממפקד הבסיס שיתווך.', false, 'חקירה לא מנוהלת דרך מפקדים. יצאת מהחדר והחשוד קיבל שליטה על התהליך.')
+                ]
+            },
+            {
+                level: 'medium', title: 'בקשה לעורך דין',
+                desc: 'באמצע חקירה החשוד אומר פתאום: "אני רוצה להתייעץ עם עורך דין". אתה ממש לפני שאלה חשובה. מה עושה?',
+                choices: [
+                    c('להפסיק את השאלות, לאפשר התייעצות ולתעד את הבקשה.', true, 'נכון. זכות ההתייעצות היא זכות יסוד, ותיעוד הבקשה מגן עליך.'),
+                    c('לשאול עוד שאלה אחת "לפני שמפסיקים" כדי לא לאבד מומנטום.', false, 'שאלה אחת כזו עלולה לפסול את כל מה שנאמר אחריה.'),
+                    c('להסביר לו שעורך דין רק יסבך אותו.', false, 'הרתעה מזכויות היא פגיעה חמורה בהליך ובאמינות החקירה.')
+                ]
+            },
+            {
+                level: 'medium', title: 'עד שמפחד',
+                desc: 'עד מפתח מוכן להעיד אך מפחד, ומבקש שתבטיח לו ששום אדם לא ידע שהעיד. איך מגיבים?',
+                choices: [
+                    c('לא להבטיח מה שאינו בסמכותך, להסביר את האפשרויות הקיימות להגנה ולהפנות לגורם המוסמך.', true, 'נכון. כנות בגבולות הסמכות בונה אמון אמיתי.'),
+                    c('להבטיח לו אלמוניות מלאה, העיקר שיעיד.', false, 'הבטחה שאינך יכול לקיים תתפוצץ בבית הדין ותפגע באמון.'),
+                    c('לוותר על העד, זה יותר מדי כאב ראש.', false, 'ויתור על עד מפתח בגלל חשש שאפשר להתמודד איתו הוא כשל מקצועי.')
+                ]
+            },
+            {
+                level: 'medium', title: 'הצעה מפתה',
+                desc: 'חשוד אומר: "אני אספר הכל, אבל תבטיח לי שלא יהיה כתב אישום". מה התגובה?',
+                choices: [
+                    c('לא להבטיח הטבות שאינן בסמכותך, ולתעד את ההצעה כפי שנאמרה.', true, 'נכון. אין לך סמכות להבטיח כתב אישום או היעדרו, ותיעוד מדויק מגן על החקירה.'),
+                    c('להסכים בחצי פה כדי לקבל הודאה, ואחר כך נראה.', false, 'הודאה שהושגה בהבטחת שווא נפסלת, ואתה נשאר עם מצג שווא על הגב.'),
+                    c('להתעצבן ולסיים את החקירה.', false, 'ניהול רגשות הוא חלק מהמקצוענות. אפשר לסרב בלי לפוצץ את החקירה.')
+                ]
+            },
+            {
+                level: 'medium', title: 'מצלמות אבטחה',
+                desc: 'מצלמות השער בבסיס מוחקות הקלטות אחרי 48 שעות, והאירוע התרחש לפני יומיים. מה עושה?',
+                choices: [
+                    c('לדרוש מיד העתקה רשמית של הקטע, עם תיעוד מי העתיק ומתי.', true, 'מצוין. פעלת מהר ושמרת על שרשרת הראיה.'),
+                    c('לצלם את המסך עם הנייד בזמן שיש.', false, 'צילום מסך בנייד הוא ראיה חלשה ללא שרשרת תקינה.'),
+                    c('לחכות לאישור פרקליט, הוא ממילא יגיד כן.', false, 'השהיה כאן עלולה למחוק את הראיה לתמיד. פועלים מיד ומתעדים.')
+                ]
+            },
+            {
+                level: 'medium', title: 'עדויות סותרות',
+                desc: 'שני עדים מוסרים גרסאות שונות לגמרי על אותו אירוע. הגרסה של אחד מהם מתאימה יותר לתיאוריה שלך. מה עושה?',
+                choices: [
+                    c('לתעד את שתי הגרסאות כפי שנמסרו ולבדוק אותן מול ראיות נוספות.', true, 'נכון. חוקר בודק תיאוריה מול ראיות ולא להפך.'),
+                    c('לבחור את הגרסה שמתאימה לתיאוריה ולהשמיט את השנייה.', false, 'הסתרת גרסה סותרת היא כשל חמור בחובת הגילוי.'),
+                    c('לשכנע את אחד העדים לשנות את הגרסה שלו.', false, 'הטיית עד היא פגיעה בטוהר החקירה ועבירה בפני עצמה.')
+                ]
+            },
+            {
+                level: 'medium', title: 'מחשב נייד של חשוד',
+                desc: 'נתפס מחשב נייד של חשוד בחשד להברחת ציוד. חוקר צעיר כבר שלף את המקלדת ומתכוון "לחפש קצת". מה עושה?',
+                choices: [
+                    c('לעצור, ליצור העתק פורנזי ולעבוד על העותק בלבד.', true, 'מצוין. העבודה על העתק שומרת על המקור כראיה.'),
+                    c('לחפש בקבצים ישירות בנייד, זה מהיר.', false, 'כל פעולה במחשב המקורי משנה נתונים ופוגעת בקבילות.'),
+                    c('למחוק קבצים לא רלוונטיים כדי לפנות מקום לבדיקה.', false, 'מחיקה מראיה היא הרס ראיה.')
+                ]
+            },
+            {
+                level: 'medium', title: 'שאלה מכוונת',
+                desc: 'חוקר ותיק מציע לך לנסח שאלה לחשוד כך: "הרי ידעת שהציוד גנוב, נכון?". מה עושה חוקר מקצועי?',
+                choices: [
+                    c('לנסח שאלות פתוחות וניטרליות ולא להכניס מסקנה לתוך השאלה.', true, 'נכון. שאלה מכוונת פוגעת במשקל התשובה ובאמינות החוקר.'),
+                    c('לשאול כמו שהוצע, זה רק ניסוח.', false, 'ניסוח מכוון הוא בדיוק מה שהסנגור יציג כלחץ פסול.'),
+                    c('לשאול באותו משפט, אבל בקול גבוה כדי להלחיץ.', false, 'לחץ נפשי מכוון יכול לפסול את החקירה.')
+                ]
+            },
+            {
+                level: 'medium', title: 'חשוד שחש ברע',
+                desc: 'באמצע החקירה החשוד מתלונן על כאבים חזקים בחזה ונראה חיוור. מה עושה?',
+                choices: [
+                    c('להפסיק מיד, להזעיק גורם רפואי ולתעד את האירוע.', true, 'נכון. בריאות החשוד קודמת לכל שאלה.'),
+                    c('לסיים את השאלה הקריטית ואז לקרוא לרופא.', false, 'עיכוב בטיפול רפואי הוא סיכון לחיים ופגיעה חמורה בחקירה.'),
+                    c('להניח שזה תרגיל כדי להתחמק מהשאלות.', false, 'ספק רפואי לא מתעלמים ממנו. תמיד קוראים לגורם רפואי.')
+                ]
+            },
+
+            // ---------- רמה קשה ----------
+            {
+                level: 'hard', title: 'הארכת מעצר בבית הדין',
+                desc: 'הגעת לבית הדין לבקש הארכת מעצר. הסנגור טוען שהחשוד מוחזק 25 שעות ללא הבאה בפני שופט בגלל טעות רישום שלך. הנהלים דורשים הבאה תוך 24 שעות.',
+                choices: [
+                    c('לטעון שהשעון במתקן הכליאה מפגר בשעה.', false, 'שקר בבית דין! השופט זיהה את הסתירה במסמכים ושחרר את החשוד. עבירת משמעת חמורה.'),
+                    c('לקחת אחריות על טעות הרישום ולבקש הארכה על בסיס מסוכנות.', true, 'אמנם טעית ברישום, אבל אמירת אמת בבית הדין היא ערך עליון. השופט העיר לך, אך האריך את המעצר.'),
+                    c('להאשים את הסמל התורן ברישום השגוי.', false, 'הטלת אשמה לא נכונה בבית הדין פוגעת באמינות שלך ושל כל העדות.')
+                ]
+            },
+            {
+                level: 'hard', title: 'הודאה בשיחת מסדרון',
+                desc: 'לפני חקירה רשמית, תוך שיחה "חברית" במסדרון, החשוד פולט הודאה חלקית. מה עושה חוקר מקצועי?',
+                choices: [
+                    c('לעצור את השיחה, להזהיר אותו כחוק, לתעד את מה שנאמר ולהמשיך בחקירה מסודרת.', true, 'נכון. אמירה ללא אזהרה בעייתית, ולכן מתעדים בשקיפות וחוזרים לתהליך תקין.'),
+                    c('לרשום את ההודאה ולהגיש אותה כראיה מרכזית.', false, 'הודאה ללא אזהרה היא מועמדת מצוינת לפסילה.'),
+                    c('להמשיך לדבר "בקטנה" כדי להוציא עוד.', false, 'עקיפת האזהרה בכוונה היא עבירת משמעת וקשה להגן עליה בבית הדין.')
+                ]
+            },
+            {
+                level: 'hard', title: 'חיפוש בלוקר',
+                desc: 'יש לך חשד לסמים בלוקר של חייל. הסמל התורן מציע: "תפתח, אני מאשר בעל פה". מה עושה?',
+                choices: [
+                    c('לוודא סמכות חוקית ולקבל אישור או צו מתאים בכתב לפני החיפוש.', true, 'נכון. חיפוש חוקי מתחיל בסמכות מתועדת.'),
+                    c('לפתוח מיד, הסמל התורן אישר.', false, 'אישור בעל פה ממי שאינו מוסמך אינו עילה לחיפוש, והחיפוש עלול להיפסל.'),
+                    c('לפתוח כשהחייל לא נמצא כדי שלא ייווצר עימות.', false, 'חיפוש מאחורי הגב ללא סמכות הוא נקודה שחורה מול הסנגור.')
+                ]
+            },
+            {
+                level: 'hard', title: 'לחץ מלמעלה',
+                desc: 'קצין בכיר מתקשר ומבקש שתסגור בשקט את התיק נגד חייל מצטיין "כי הוא מסומן לקורס קצינים". מה עושה?',
+                choices: [
+                    c('להמשיך בחקירה, לתעד את הפנייה ולדווח עליה לממונים המקצועיים.', true, 'נכון. עמידה בלחץ ושקיפות כלפי הגורמים המקצועיים הן לב המקצוע.'),
+                    c('לסגור, אי אפשר להתעמת עם דרגה כזו.', false, 'סגירת תיק בלחץ היא טיוח חקירה. עבירה חמורה.'),
+                    c('להאט את הקצב כדי שהתיק "יישכח".', false, 'גרירת רגליים מכוונת היא צורה שקטה של אותו טיוח.')
+                ]
+            },
+            {
+                level: 'hard', title: 'חבר מהקורס',
+                desc: 'התיק החדש שלך הוא נגד חייל שישן איתך באותו חדר בקורס חוקרים והוא חבר טוב שלך. מה עושה?',
+                choices: [
+                    c('לדווח על ניגוד עניינים ולבקש להעביר את התיק לחוקר אחר.', true, 'נכון. חוקר מקצועי יודע מתי לא להיות החוקר.'),
+                    c('לקחת את התיק, אתה אובייקטיבי.', false, 'אובייקטיביות מוצהרת לא מבטלת ניגוד עניינים.'),
+                    c('לקחת את התיק ולהסתיר את ההיכרות כדי שלא יעכבו אותך.', false, 'הסתרת קשר אישי עם חשוד היא פגיעה קשה באמינות.')
+                ]
+            },
+            {
+                level: 'hard', title: 'טעות בתיק',
+                desc: 'אחרי שהתיק הועבר לפרקליטות, אתה מגלה שרשמת בעדות שעה שגויה, וייתכן שזה משנה את התמונה. מה עושה?',
+                choices: [
+                    c('לדווח מיד לפרקליט המלווה ולתקן באופן מתועד ושקוף.', true, 'נכון. טעות שמודים בה בזמן היא טעות שאפשר לחיות איתה.'),
+                    c('לא לעשות כלום, זה פרט קטן.', false, 'פרט קטן שמתגלה אחרי ההגשה הופך לבעיה גדולה בחקירה נגדית.'),
+                    c('לתקן בשקט את המסמך המקורי כדי שלא ישימו לב.', false, 'שינוי מסמך בשקט נראה כזיוף, גם אם כוונתך טובה.')
+                ]
+            },
+            {
+                level: 'hard', title: 'הדלפה לעיתונאי',
+                desc: 'קצין בכיר מבקש שתדליף לעיתונאי פרטים מהחקירה "כדי להפעיל לחץ ציבורי על החשוד". מה עושה?',
+                choices: [
+                    c('לסרב, לתעד את הבקשה ולדווח. פרסום נעשה רק דרך הגורמים המוסמכים.', true, 'נכון. הדלפה פוגעת בחקירה, בחזקת החפות ובך.'),
+                    c('להדליף בעילום שם, כך אף אחד לא יידע.', false, 'הדלפות תמיד מתגלות, וכשהן מתגלות הן מסיימות קריירות.'),
+                    c('להדליף רק פרט קטן ובטוח.', false, 'אין "פרט קטן" כשמדובר בהדלפת חומר חקירה.')
+                ]
+            },
+            {
+                level: 'hard', title: 'ראיה שמזכה',
+                desc: 'במהלך חקירה אתה מוצא ראיה שמחזקת את גרסת החשוד ופוגעת בתיאוריה של התביעה. מה עושה?',
+                choices: [
+                    c('לתעד אותה ולהעביר אותה לפרקליט כחלק מחומר החקירה, גם אם היא לא נוחה.', true, 'מצוין. חוקר מחפש אמת, לא הרשעה.'),
+                    c('להשאיר אותה מחוץ לתיק, היא רק תבלבל.', false, 'הסתרת ראיה מזכה היא הפרה חמורה של חובת הגילוי.'),
+                    c('לשמור אותה בקובץ נפרד עד שמישהו ישאל.', false, 'ראיה שנמצאת מחוץ לתיק היא ראיה שהוסתרה.')
+                ]
+            },
+            {
+                level: 'hard', title: 'חקירה מתישה',
+                desc: 'חשוד נחקר 9 שעות ברצף. הסמל שלך אומר: "הוא כמעט נשבר, תמשיך עד שיודה". מה עושה?',
+                choices: [
+                    c('לדרוש הפסקה ומנוחה, ולתעד את תנאי החקירה והמשכה.', true, 'נכון. הודאה שהושגה בתשישות היא הודאה שנפסלת.'),
+                    c('להמשיך, הוא ממילא קרוב לפריצה.', false, 'חקירה מתישה פוגעת בקבילות ובכבוד האדם.'),
+                    c('להחליף חוקרים כל שעה כדי שהחשוד לא יקבל מנוחה.', false, 'החלפת חוקרים כדי להתיש היא שיטה פסולה מובהקת.')
+                ]
+            },
+            {
+                level: 'hard', title: 'חומר חסוי בטעות',
+                desc: 'במחשב המשותף נפתח לפניך קובץ מתיק אחר, מסומן כחסוי, שאינך מורשה לראות. מה עושה?',
+                choices: [
+                    c('להפסיק לקרוא, לסגור, לדווח לממונה ולא להשתמש בתוכן.', true, 'נכון. חשיפה מקרית מדווחים עליה מיד.'),
+                    c('לקרוא עד הסוף, אולי יש שם משהו שיעזור לתיק שלך.', false, 'חשיפה מכוונת לחומר חסוי היא עבירה, ופוגעת בשני התיקים.'),
+                    c('לצלם את המסך ולהעביר לעמית שמטפל בתיק הזה.', false, 'העברת חומר חסוי בצילום היא הדלפה.')
+                ]
+            }
+        ];
+        QUESTIONS.forEach((q, i) => q.id = i);
+
+        // ==========================================
+        // 3. מצב המשחק
+        // ==========================================
+        function newState(name) {
+            return {
+                name: name || '',
+                base: '',
+                month: 1,
+                rankId: 'private',
+                xp: 0,
+                promotions: 0,    // כמה קידומים כבר היו. קובע את רמת הקושי
+                path: null,       // 'sgt' | 'off'
+                trust: 50,
+                prof: 20,
+                consecutiveMistakes: 0,
+                totalMistakes: 0,
+                maxConsecutive: 3,
+                maxTotal: 10,
+                signed: null,     // החלטה על חתימת קבע
+                pending: null,    // אירוע שממתין אחרי המשוב: 'branch' | 'sign' | 'end'
+                current: null,
+                lastId: null      // השאלה האחרונה, כדי שלא תחזור ברצף
+            };
+        }
+
+        let state = newState('');
+        const usedIds = new Set();
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // ככל שמתקדמים בדרגות, יותר שאלות קשות ופחות קלות
+        function pickLevel() {
+            const p = state.promotions;
+            const easyP = Math.max(0.10, 0.40 - 0.03 * p);
+            const hardP = Math.min(0.55, 0.25 + 0.03 * p);
+            const r = Math.random();
+            if (r < easyP) return 'easy';
+            if (r < 1 - hardP) return 'medium';
+            return 'hard';
+        }
+
+        // בחירת שאלה: בלי חזרה עד שנגמר המאגר, ולעולם לא אותה שאלה פעמיים ברצף
+        function pickQuestion() {
+            const level = pickLevel();
+            const notLast = q => q.id !== state.lastId;
+            let pool = QUESTIONS.filter(q => q.level === level && !usedIds.has(q.id) && notLast(q));
+            if (!pool.length) pool = QUESTIONS.filter(q => !usedIds.has(q.id) && notLast(q));
+            if (!pool.length) {
+                usedIds.clear();
+                pool = QUESTIONS.filter(q => q.level === level && notLast(q));
+            }
+            const q = pool[Math.floor(Math.random() * pool.length)];
+            usedIds.add(q.id);
+            state.lastId = q.id;
+            return q;
+        }
+
+        function nextRankLabel() {
+            const n = RANKS[state.rankId].next;
+            if (n === 'BRANCH') return 'פרשת דרכים';
+            if (n === 'SIGN') return RANKS.ssg.name;
+            if (n === 'END') return 'סיום הקריירה 🏁';
+            return RANKS[n].name;
+        }
+
+        function pickOtherBase() {
+            const all = [...basesData.north, ...basesData.south].filter(b => b !== state.base);
+            return all[Math.floor(Math.random() * all.length)];
+        }
+
+        function updateUI() {
+            state.trust = Math.max(0, Math.min(100, state.trust));
+            state.prof = Math.max(0, Math.min(100, state.prof));
+            const rank = RANKS[state.rankId];
+            const need = xpNeeded();
+
+            document.getElementById('ui-name').textContent = state.name;
+            document.getElementById('ui-base').textContent = state.base;
+            document.getElementById('ui-month').innerText = state.month;
+            document.getElementById('ui-diff').innerText = state.promotions + 1;
+            document.getElementById('ui-rank').innerText = rank.name;
+
+            const xpPct = Math.min(100, Math.round(state.xp / need * 100));
+            document.getElementById('ui-xp-val').innerText = `${state.xp}/${need}`;
+            document.getElementById('bar-xp').style.width = xpPct + '%';
+            document.getElementById('ui-next-rank').innerText = nextRankLabel();
+
+            document.getElementById('ui-trust-val').innerText = state.trust + '%';
+            document.getElementById('bar-trust').style.width = state.trust + '%';
+            if (state.trust < 30) document.getElementById('bar-trust').classList.replace('bg-green-500', 'bg-red-500');
+            else document.getElementById('bar-trust').classList.replace('bg-red-500', 'bg-green-500');
+
+            document.getElementById('ui-prof-val').innerText = state.prof;
+            document.getElementById('bar-prof').style.width = state.prof + '%';
+
+            document.getElementById('ui-tot-mistakes').innerText = state.totalMistakes;
+            document.getElementById('ui-max-total').innerText = state.maxTotal;
+            document.getElementById('bar-tot-mistakes').style.width = (state.totalMistakes / state.maxTotal * 100) + '%';
+
+            const dots = document.getElementById('ui-cons-dots').children;
+            for (let i = 0; i < 3; i++) {
+                if (i < state.consecutiveMistakes) dots[i].classList.add('active');
+                else dots[i].classList.remove('active');
+            }
+        }
+
+        // ==========================================
+        // 4. תצוגות
+        // ==========================================
+        const VIEWS = ['view-scenario', 'view-feedback', 'view-event', 'view-gameover', 'view-victory'];
+
+        function showView(id) {
+            VIEWS.forEach(v => document.getElementById(v).classList.add('hidden'));
+            const el = document.getElementById(id);
+            el.classList.remove('hidden');
+            el.classList.remove('fade-in');
+            void el.offsetWidth;
+            el.classList.add('fade-in');
+            document.getElementById('game-container').scrollTop = 0;
+            const mainEl = document.querySelector('#game-container main');
+            if (mainEl) mainEl.scrollTop = 0;
+        }
+
+        function renderScenario(override) {
+            const q = override || pickQuestion();
+            if (override) { state.lastId = q.id; usedIds.add(q.id); }
+            state.current = q;
+            const L = LEVELS[q.level];
+
+            document.getElementById('scenario-title').innerText = q.title;
+            document.getElementById('scenario-desc').innerText = q.desc;
+
+            const badge = document.getElementById('scenario-level');
+            badge.className = 'inline-block text-xs px-2 py-1 rounded border font-bold mb-3 ' + L.cls;
+            badge.innerText = `רמה ${L.label} · +${L.xp} XP`;
+
+            const container = document.getElementById('choices-container');
+            container.innerHTML = '';
+
+            shuffle(q.choices.slice()).forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn w-full text-right p-4 rounded-xl text-sm md:text-base font-medium text-slate-200';
+                btn.innerHTML = `<span class="text-blue-400 font-bold mr-1">${index + 1}.</span> `;
+                btn.appendChild(document.createTextNode(choice.text));
+                btn.onclick = () => processChoice(choice);
+                container.appendChild(btn);
+            });
+
+            saveGame(false);
+        }
+
+        function showFeedback(res) {
+            document.getElementById('feedback-icon').innerText = res.icon;
+            const t = document.getElementById('feedback-title');
+            t.innerText = res.title;
+            t.className = 'text-xl md:text-2xl font-bold mb-4 ' + (res.good ? 'text-green-400' : 'text-red-400');
+            document.getElementById('feedback-text').innerText = res.text;
+            document.getElementById('feedback-impact').innerHTML = res.impact;
+
+            const btn = document.getElementById('next-btn');
+            if (state.pending === 'end') btn.innerText = 'לסיכום הקריירה 🏆';
+            else if (state.pending) btn.innerText = 'המשך ➔';
+            else btn.innerText = 'המשך לחודש הבא ➔';
+
+            showView('view-feedback');
+        }
+
+        // ==========================================
+        // 5. עיבוד החלטות וקידומים
+        // ==========================================
+        const banner = (html) => `<div class="text-amber-300 font-bold mt-2">${html}</div>`;
+
+        function handlePromotion() {
+            const cur = RANKS[state.rankId];
+            const n = cur.next;
+            state.xp = 0;
+
+            if (n === 'BRANCH') {
+                state.pending = 'branch';
+                return banner('🎖️ פס ה-XP התמלא! הגעת לצומת מסלול.');
+            }
+            if (n === 'SIGN') {
+                state.pending = 'sign';
+                return banner('🎖️ פס ה-XP התמלא! קצין הקבע מבקש לדבר איתך...');
+            }
+            if (n === 'END') {
+                state.pending = 'end';
+                return banner(`🏆 פס ה-XP התמלא בדרגת ${cur.name}!`);
+            }
+
+            state.rankId = n;
+            state.promotions++;
+            let html = banner(`🎖️ קידום! דרגה חדשה: ${RANKS[n].name}`);
+            html += `<div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}: הדרגה הבאה תדרוש יותר XP</div>`;
+
+            // סמ״ר -> נגד בלי חתימת קבע: מעבירים בסיס
+            if (n === 'nagad' && state.signed === false) {
+                const newBase = pickOtherBase();
+                state.base = newBase;
+                html += `<div class="text-slate-300 text-xs mt-2 leading-relaxed">📦 מכיוון שלא חתמת קבע (וזו, כזכור, לא באמת הייתה שאלה), הועברת ל${newBase}. תודה על הגמישות!</div>`;
+            }
+            return html;
+        }
+
+        function processChoice(choice) {
+            const q = state.current;
+            const L = LEVELS[q.level];
+            const rankId = state.rankId;
+            const rankName = RANKS[rankId].name;
+            let impact = '';
+            let icon, title;
+
+            if (choice.ok) {
+                state.consecutiveMistakes = 0;
+                state.trust += L.gain;
+                state.prof += L.prof;
+                state.xp += L.xp;
+                title = 'פעולה נכונה';
+                icon = '✅';
+                impact += `<div class="text-amber-400">+${L.xp} XP</div>`;
+                impact += `<div class="text-green-400">+${L.gain}% אמון פיקוד</div>`;
+                impact += `<div class="text-blue-300">+${L.prof} מקצוענות</div>`;
+
+                if (state.xp >= xpNeeded()) {
+                    impact += handlePromotion();
+                }
+            } else {
+                state.consecutiveMistakes++;
+                state.totalMistakes++;
+                title = 'שגיאה מקצועית';
+                icon = '❌';
+                impact += `<div class="text-red-400 font-bold">נרשמה טעות מקצועית!</div>`;
+
+                if (!JUNIOR_RANKS.includes(rankId)) {
+                    // כל קידום מייקר את הטעויות ב-5%, והמקצוענות מקזזת חלק מהפגיעה
+                    const lossBase = Math.round(L.loss * (1 + 0.05 * state.promotions));
+                    const saved = Math.round(lossBase * Math.min(100, state.prof) / 200);
+                    const penalty = lossBase - saved;
+                    state.trust -= penalty;
+                    impact += `<div class="text-red-500 mt-1">בתור ${rankName}, אמון הפיקוד בך נפגע (-${penalty}%)</div>`;
+                    if (saved > 0) impact += `<div class="text-blue-300 text-xs">המקצוענות שלך חסכה ${saved}% מהפגיעה</div>`;
+                } else {
+                    impact += `<div class="text-slate-400 mt-1">ניצלת מירידת אמון בגלל דרגתך הזוטרה.</div>`;
+                }
+            }
+
+            updateUI();
+
+            if (state.consecutiveMistakes >= state.maxConsecutive) {
+                return showGameOver(`צברת ${state.maxConsecutive} טעויות מקצועיות ברצף. הראית חוסר התמצאות מוחלט בנהלים ולכן הוחלט להשעות אותך מתפקידך בדרגת ${rankName}.`);
+            }
+            if (state.totalMistakes >= state.maxTotal) {
+                return showGameOver(`צברת ${state.maxTotal} טעויות מקצועיות במצטבר לאורך השירות. המערכת לא יכולה להכיל חוקר עם רקורד כזה.`);
+            }
+            if (state.trust <= 0) {
+                return showGameOver('איבדת לחלוטין את אמון הפיקוד והפרקליטות. חוקר שלא סומכים עליו לא יכול לנהל תיקים.');
+            }
+
+            state.current = null;
+            saveGame(true);
+            showFeedback({ icon, title, good: choice.ok, text: choice.fb, impact });
+        }
+
+        function showGameOver(reason) {
+            recordFrom(state, 'fired', reason);
+            document.getElementById('gameover-text').innerText = reason;
+            showView('view-gameover');
+        }
+
+        // ==========================================
+        // 6. אירועים מיוחדים
+        // ==========================================
+        function nextMonth() {
+            if (state.pending === 'branch') return showBranch();
+            if (state.pending === 'sign') return showSign();
+            if (state.pending === 'end') return showVictory();
+
+            state.month++;
+            updateUI();
+            renderScenario();
+            showView('view-scenario');
+        }
+
+        function showEvent(title, desc, options) {
+            document.getElementById('event-title').innerText = title;
+            document.getElementById('event-desc').innerText = desc;
+            const container = document.getElementById('event-choices');
+            container.innerHTML = '';
+            options.forEach((o, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn w-full text-right p-4 rounded-xl text-sm md:text-base font-medium text-slate-200';
+                btn.innerHTML = `<span class="text-amber-400 font-bold mr-1">${i + 1}.</span> `;
+                btn.appendChild(document.createTextNode(o.text));
+                btn.onclick = () => resolveEvent(o.apply);
+                container.appendChild(btn);
+            });
+            showView('view-event');
+        }
+
+        function resolveEvent(apply) {
+            state.pending = null;
+            const res = apply();
+            updateUI();
+            if (state.trust <= 0) {
+                return showGameOver('איבדת לחלוטין את אמון הפיקוד והפרקליטות. חוקר שלא סומכים עליו לא יכול לנהל תיקים.');
+            }
+            saveGame(true);
+            showFeedback(res);
+        }
+
+        // --- פרשת דרכים: סמל או קצונה ---
+        function showBranch() {
+            showEvent(
+                'פרשת דרכים 🛣️',
+                `סיימת בהצלחה את דרגת הרב״ט, ${state.name}. מפקד הבסיס הזמין אותך לשיחה ושם על השולחן שני תיקים:\n\n🛡️ מסלול סמלים: נשארים בשטח, חוקרים, מתמקצעים ועולים בסולם עד דרגת נגד.\n⭐ קורס קצינים: יוצאים לקצונה, מנהלים אנשים ועולים עד מפקד מצ״ח.\n\nהפיקוד, אגב, רגיל שמי שיכול לצאת לקצונה מחליט לצאת לקצונה.`,
+                [
+                    {
+                        text: '🛡️ מסלול סמלים - להישאר בשטח ולהעמיק במקצוענות',
+                        apply: () => {
+                            state.rankId = 'sergeant';
+                            state.path = 'sgt';
+                            state.promotions++;
+                            state.xp = 0;
+                            state.trust -= 15;
+                            state.prof += 25;
+                            return {
+                                icon: '🛡️', title: 'בחרת במסלול הסמלים', good: true,
+                                text: 'מפקד הבסיס הרים גבה: "קצונה לא מעניינת אותך?". אבל בשטח כולם מבינים שהחוקר הכי טוב בבסיס הוא זה שלא נושא סמל קצונה, אלא תיקים סגורים.',
+                                impact: `<div class="text-red-400">-15% אמון פיקוד (ויתרת על קצונה)</div>
+                                         <div class="text-blue-300">+25 מקצוענות</div>
+                                         ${banner('🎖️ דרגה חדשה: סמל')}
+                                         <div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}</div>`
+                            };
+                        }
+                    },
+                    {
+                        text: '⭐ קורס קצינים - לצאת לקצונה ולטפס לפסגה',
+                        apply: () => {
+                            state.rankId = 'lt';
+                            state.path = 'off';
+                            state.promotions++;
+                            state.xp = 0;
+                            return {
+                                icon: '⭐', title: 'בחרת במסלול הקצונה', good: true,
+                                text: 'מפקד הבסיס חייך: "ידעתי שאתה שאפתן". קורס קצינים הסתיים, ותוך זמן קצר קיבלת דרגה, צוות, ואת הזכות להיות זה שמחתים אחרים על הטפסים.',
+                                impact: `${banner('🎖️ דרגה חדשה: מפק״צ')}
+                                         <div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}</div>`
+                            };
+                        }
+                    }
+                ]
+            );
+        }
+
+        // --- חתימת קבע (בין סמל לסמ״ר) ---
+        function showSign() {
+            const signedApply = () => {
+                state.rankId = 'ssg';
+                state.promotions++;
+                state.xp = 0;
+                state.signed = true;
+                state.trust += 10;
+                return {
+                    icon: '🖊️', title: 'חתמת קבע', good: true,
+                    text: 'קצין הקבע חייך: "מעולה! לא שיש הרבה ברירה, אבל נחמד שהסכמת". התברר שהטפסים כבר היו מוכנים מאתמול, עם החתימה שלך (מצוינת, אגב).',
+                    impact: `<div class="text-green-400">+10% אמון פיקוד (שיתוף פעולה)</div>${banner('🎖️ דרגה חדשה: סמ״ר')}
+                             <div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}</div>`
+                };
+            };
+            const refuseApply = (text) => () => {
+                state.rankId = 'ssg';
+                state.promotions++;
+                state.xp = 0;
+                state.signed = false;
+                state.trust -= 20;
+                return {
+                    icon: '🤡', title: 'השאלה הייתה רטורית', good: false,
+                    text,
+                    impact: `<div class="text-red-400">-20% אמון פיקוד</div>
+                             <div class="text-slate-300 text-xs mt-1">חתמו בשבילך בכל מקרה. הבסיס שלך ישתנה כשתגיע לדרגת נגד.</div>
+                             ${banner('🎖️ דרגה חדשה: סמ״ר')}
+                             <div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}</div>`
+                };
+            };
+
+            showEvent(
+                'שיחה עם קצין הקבע 🖊️',
+                `סמל ${state.name}, פס ה-XP התמלא וקצין הקבע הזמין אותך למשרד. הוא מניח עט על השולחן, מחייך חיוך רחב מדי ושואל:\n\n"אז מה, רוצה לחתום קבע?"\n\nמאחוריו בפינה עומד שקית עם הטפסים. והם כבר מלאים.`,
+                [
+                    { text: 'כן, בשמחה! תנו עט.', apply: signedApply },
+                    {
+                        text: 'לא, תודה. אני מעדיף להשתחרר בזמן.',
+                        apply: refuseApply('"לא?" קצין הקבע צחק עד שהתיישב. "תראה, זו הייתה שאלה רטורית. חתמנו אותך כבר. אבל הרגשנו שהבעת התנגדות, ושבצנו את זה בתיק: האמון בך ירד."')
+                    },
+                    {
+                        text: 'אפשר לחשוב על זה קצת?',
+                        apply: refuseApply('"לחשוב?" הוא רשם בפנקס: "חושב יותר מדי". הוא הסביר בנימוס שהשאלה לא באמת נשאלה כדי לקבל תשובה, שהזמן לחשוב נגמר כשנכנסת לחדר, ושהאמון בך ירד בזמן שחשבת.')
+                    }
+                ]
+            );
+        }
+
+        // --- מסך סיום מוצלח ---
+        function showVictory() {
+            state.pending = null;
+            const isChief = state.rankId === 'chief';
+            const rankName = RANKS[state.rankId].name;
+            recordFrom(state, 'won');
+
+            document.getElementById('victory-title').innerText = isChief ? 'מפקד מצ״ח!' : 'נגד מצ״ח מהשורה הראשונה';
+            document.getElementById('victory-text').innerText = isChief
+                ? `${state.name}, עשית את כל הדרך מטוראי ועד לראש היחידה. בכל חדר חקירות בצבא מדברים עליך, בעיקר בלחש.`
+                : `${state.name}, עשית את כל הדרך מטוראי ועד נגד. אין תיק שלא עבר דרכך ואין חוקר צעיר שלא ביקש ממך עצה (בדרך כלל באמצע התיק).`;
+            document.getElementById('victory-stats').innerHTML =
+                `דרגה סופית: <b class="text-white">${rankName}</b><br>
+                 חודשי שירות: ${state.month}<br>
+                 אמון פיקוד: ${state.trust}% · מקצוענות: ${state.prof}<br>
+                 טעויות לאורך הדרך: ${state.totalMistakes}`;
+            showView('view-victory');
+        }
+
+        // ==========================================
+        // 7. מקלדת (מחשב): 1-3 לבחירה, Enter להמשך
+        // ==========================================
+        document.addEventListener('keydown', (e) => {
+            const tag = (e.target.tagName || '').toLowerCase();
+            if (tag === 'input') {
+                if (e.key === 'Enter' && e.target.id === 'investigator-name') authenticate();
+                return;
+            }
+            if (tag === 'select' || tag === 'textarea') return;
+
+            const hid = id => document.getElementById(id).classList.contains('hidden');
+            if (hid('game-screen')) return;
+            if (!hid('briefing-screen') || !hid('history-screen')) return;
+
+            if (e.key >= '1' && e.key <= '9') {
+                const cont = !hid('view-scenario') ? 'choices-container' : (!hid('view-event') ? 'event-choices' : null);
+                if (cont) {
+                    const b = document.getElementById(cont).children[parseInt(e.key, 10) - 1];
+                    if (b) b.click();
+                }
+            } else if (e.key === 'Enter' && tag !== 'button' && !hid('view-feedback')) {
+                nextMonth();
+            }
+        });
+    </script>
+</body>
+</html>
