@@ -123,7 +123,74 @@
         }
         #game-container { padding-bottom: env(safe-area-inset-bottom); }
         .safe-pad { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+
+        /* ===== מצב בהיר (Light mode) ===== */
+        html { color-scheme: dark; }
+        [data-theme="light"] { color-scheme: light; }
+        [data-theme="light"] body { background-color: #e2e8f0; }
+        [data-theme="light"] .game-font { color: #0f172a; }
+
+        [data-theme="light"] .bg-slate-950 { background-color: #e2e8f0; }
+        [data-theme="light"] .bg-slate-900 { background-color: #f1f5f9; }
+        [data-theme="light"] .bg-slate-800 { background-color: #ffffff; }
+        [data-theme="light"] .bg-slate-700 { background-color: #cbd5e1; }
+        [data-theme="light"] .hover\:bg-slate-600:hover { background-color: #94a3b8; }
+        [data-theme="light"] .border-slate-600,
+        [data-theme="light"] .border-slate-700 { border-color: #cbd5e1; }
+        [data-theme="light"] .border-slate-700\/50 { border-color: #e2e8f0; }
+
+        [data-theme="light"] .text-white { color: #0f172a; }
+        [data-theme="light"] .text-slate-200 { color: #1e293b; }
+        [data-theme="light"] .text-slate-300 { color: #334155; }
+        [data-theme="light"] .text-slate-400 { color: #475569; }
+        [data-theme="light"] .text-slate-500 { color: #64748b; }
+        [data-theme="light"] .text-green-300 { color: #166534; }
+        [data-theme="light"] .text-green-400 { color: #15803d; }
+        [data-theme="light"] .text-emerald-400 { color: #047857; }
+        [data-theme="light"] .text-blue-300 { color: #1d4ed8; }
+        [data-theme="light"] .text-blue-400 { color: #1d4ed8; }
+        [data-theme="light"] .text-amber-300 { color: #b45309; }
+        [data-theme="light"] .text-amber-400 { color: #b45309; }
+        [data-theme="light"] .text-red-300,
+        [data-theme="light"] .text-red-400,
+        [data-theme="light"] .text-red-500 { color: #b91c1c; }
+
+        /* כפתורים צבעוניים נשארים עם טקסט לבן */
+        [data-theme="light"] .text-white.bg-blue-600,
+        [data-theme="light"] .text-white.bg-red-700,
+        [data-theme="light"] .text-white.bg-red-600,
+        [data-theme="light"] .text-white.bg-emerald-700 { color: #ffffff; }
+
+        /* רקעים וגבולות צבעוניים */
+        [data-theme="light"] .bg-blue-900\/50 { background-color: #dbeafe; }
+        [data-theme="light"] .border-blue-700 { border-color: #93c5fd; }
+        [data-theme="light"] .border-blue-700\/60 { border-color: #93c5fd; }
+        [data-theme="light"] .bg-green-900\/40 { background-color: #dcfce7; }
+        [data-theme="light"] .border-green-700 { border-color: #86efac; }
+        [data-theme="light"] .bg-amber-900\/40 { background-color: #fef3c7; }
+        [data-theme="light"] .border-amber-700 { border-color: #fcd34d; }
+        [data-theme="light"] .border-amber-600\/60 { border-color: #fbbf24; }
+        [data-theme="light"] .bg-red-900\/40,
+        [data-theme="light"] .bg-red-900\/20 { background-color: #fee2e2; }
+        [data-theme="light"] .border-red-700 { border-color: #fca5a5; }
+        [data-theme="light"] .bg-emerald-900\/20 { background-color: #d1fae5; }
+        [data-theme="light"] .border-emerald-600 { border-color: #6ee7b7; }
+
+        [data-theme="light"] .choice-btn { background: linear-gradient(145deg, #ffffff, #f1f5f9); border-color: #cbd5e1; }
+        [data-theme="light"] .choice-btn:active { background: #e2e8f0; }
+        @media (hover: hover) {
+            [data-theme="light"] .choice-btn:hover { border-color: #3b82f6; background: linear-gradient(145deg, #eff6ff, #dbeafe); }
+        }
+        [data-theme="light"] .progress-bar-bg { background-color: #cbd5e1; }
+        [data-theme="light"] .mistake-dot:not(.active) { background-color: #cbd5e1; }
+        [data-theme="light"] .chip { background: #e2e8f0; color: #1e293b; border-color: #94a3b8; }
+        [data-theme="light"] .chip-sgt { background: #dbeafe; border-color: #3b82f6; color: #1e40af; }
+        [data-theme="light"] .chip-off { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
     </style>
+    <script>
+        // טעינת מצב תאורה שמור לפני שהמסך מצויר
+        try { var t = localStorage.getItem('mtzach_theme'); if (t === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch (e) {}
+    </script>
 </head>
 <body class="relative">
 
@@ -242,7 +309,11 @@
                         <div class="flex flex-wrap items-center gap-1">
                             <span class="chip chip-sgt">סמל</span><span class="text-slate-500">←</span>
                             <span class="chip chip-sgt">סמ״ר</span><span class="text-slate-500">←</span>
-                            <span class="chip chip-sgt">נגד</span>
+                            <span class="chip chip-sgt">נגד</span><span class="text-slate-500">←</span>
+                            <span class="chip">ועדת קצונה (3 שאלות)</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">מב״ס</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">ממ״ר</span><span class="text-slate-500">←</span>
+                            <span class="chip chip-off">מפקד מצ״ח</span>
                         </div>
                     </div>
                     <div>
@@ -264,6 +335,8 @@
                     <li><b class="text-green-400">אמון פיקוד:</b> עולה בהחלטות נכונות ויורד בטעויות. אפס אמון = הדחה. טוראים ורב״טים מוגנים מירידת אמון.</li>
                     <li><b class="text-blue-300">מקצוענות:</b> עולה עם כל תשובה נכונה, ומקטינה את הפגיעה באמון כשאתה טועה.</li>
                     <li><b class="text-red-400">טעויות:</b> 3 ברצף או 10 במצטבר = הדחה מהתפקיד.</li>
+                    <li><b class="text-amber-300">ועדת קצונה:</b> גם מי שבחר במסלול הסמלים לא נשאר נגד לתמיד. כשתסיים את דרגת נגד תעמוד בפני ועדה עם 3 שאלות מתקדמות, וצריך לפחות 2 תשובות נכונות כדי לעבור ישר לדרגת מב״ס. אם לא עברת, חוזרים לצבור ניסיון ומנסים שוב.</li>
+                    <li><b class="text-white">מצב תאורה:</b> אפשר לעבור בין מצב כהה למצב בהיר בכפתור ☀️/🌙.</li>
                     <li><b class="text-white">שמירה והיסטוריה:</b> ההתקדמות נשמרת אוטומטית לפי שם החוקר, וכל קריירה שהסתיימה נרשמת בהיסטוריה.</li>
                     <li><b class="text-white">בדרך:</b> יחכו לך פרשת דרכים אחת, וגם כמה שאלות שמתברר שהן לא ממש שאלות. בהצלחה.</li>
                 </ul>
@@ -599,7 +672,48 @@
             }, 500);
         }
 
-        window.onload = () => setTimeout(runTerminalSequence, 500);
+        window.onload = () => {
+            initThemeButtons();
+            setTimeout(runTerminalSequence, 500);
+        };
+
+        // ==========================================
+        // 1.0 מצב תאורה (כהה / בהיר)
+        // ==========================================
+        function currentTheme() {
+            return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        }
+        function updateThemeIcons() {
+            const light = currentTheme() === 'light';
+            document.querySelectorAll('.theme-toggle').forEach(b => {
+                b.textContent = light ? '🌙' : '☀️';
+                b.title = light ? 'מעבר למצב כהה' : 'מעבר למצב בהיר';
+            });
+        }
+        function toggleTheme() {
+            const next = currentTheme() === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('mtzach_theme', next); } catch (e) { /* ממשיכים בלי שמירה */ }
+            updateThemeIcons();
+        }
+        function initThemeButtons() {
+            const mk = (extra) => {
+                const b = document.createElement('button');
+                b.className = 'theme-toggle w-9 h-9 rounded-full bg-slate-700 hover:bg-slate-600 text-base leading-none ' + (extra || '');
+                b.setAttribute('aria-label', 'מצב תאורה');
+                b.onclick = toggleTheme;
+                return b;
+            };
+            ['profile-screen', 'history-screen', 'briefing-screen'].forEach(id => {
+                const card = document.querySelector('#' + id + ' .bg-slate-800');
+                if (card) { card.classList.add('relative'); card.appendChild(mk('absolute top-3 left-3')); }
+            });
+            const assign = document.querySelector('#assignment-screen > div');
+            if (assign) assign.appendChild(mk('absolute top-3 left-3'));
+            const grp = document.querySelector('.game-header .flex.items-center.gap-2');
+            if (grp) grp.insertBefore(mk(), grp.firstChild);
+            updateThemeIcons();
+        }
 
         function afterLogin() {
             document.getElementById('success-message').classList.add('hidden');
@@ -717,7 +831,9 @@
                 const o = OUTCOME[e.outcome] || OUTCOME.abandoned;
                 const row = document.createElement('div');
                 row.className = 'bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm';
-                const path = e.path === 'sgt' ? ' · מסלול סמלים' : e.path === 'off' ? ' · מסלול קצונה' : '';
+                const path = e.path === 'sgt' ? ' · מסלול סמלים'
+                    : e.path === 'off' ? ' · מסלול קצונה'
+                    : e.path === 'sgt-off' ? ' · סמלים ואז קצונה' : '';
                 const head = document.createElement('div');
                 head.className = 'flex justify-between items-center mb-1';
                 head.innerHTML = `<span class="font-bold ${o.cls}">${o.icon} ${o.label}</span>`;
@@ -873,7 +989,7 @@
             // מסלול סמלים
             sergeant: { name: 'סמל',            next: 'SIGN' },
             ssg:      { name: 'סמ״ר',           next: 'nagad' },
-            nagad:    { name: 'נגד',            next: 'END' },
+            nagad:    { name: 'נגד',            next: 'EXAM' },   // ועדת קצונה -> מב״ס
             // מסלול קצונה
             lt:       { name: 'מפק״צ',          next: 'deputy' },
             deputy:   { name: 'סגן מפקד בסיס',  next: 'basecmd' },
@@ -1196,7 +1312,8 @@
                 maxConsecutive: 3,
                 maxTotal: 10,
                 signed: null,     // החלטה על חתימת קבע
-                pending: null,    // אירוע שממתין אחרי המשוב: 'branch' | 'sign' | 'end'
+                pending: null,    // אירוע שממתין אחרי המשוב: 'branch' | 'sign' | 'exam' | 'end'
+                exam: null,       // מצב ועדת הקצונה: { ids, idx, correct }
                 current: null,
                 lastId: null      // השאלה האחרונה, כדי שלא תחזור ברצף
             };
@@ -1244,6 +1361,7 @@
             const n = RANKS[state.rankId].next;
             if (n === 'BRANCH') return 'פרשת דרכים';
             if (n === 'SIGN') return RANKS.ssg.name;
+            if (n === 'EXAM') return 'ועדת קצונה 🎖️';
             if (n === 'END') return 'סיום הקריירה 🏁';
             return RANKS[n].name;
         }
@@ -1344,6 +1462,7 @@
 
             const btn = document.getElementById('next-btn');
             if (state.pending === 'end') btn.innerText = 'לסיכום הקריירה 🏆';
+            else if (state.pending === 'exam' && state.exam) btn.innerText = state.exam.idx >= 3 ? 'לתוצאות הוועדה ➔' : 'לשאלה הבאה ➔';
             else if (state.pending) btn.innerText = 'המשך ➔';
             else btn.innerText = 'המשך לחודש הבא ➔';
 
@@ -1367,6 +1486,10 @@
             if (n === 'SIGN') {
                 state.pending = 'sign';
                 return banner('🎖️ פס ה-XP התמלא! קצין הקבע מבקש לדבר איתך...');
+            }
+            if (n === 'EXAM') {
+                state.pending = 'exam';
+                return banner('🎖️ פס ה-XP התמלא! ועדת הקצונה זימנה אותך.');
             }
             if (n === 'END') {
                 state.pending = 'end';
@@ -1458,6 +1581,7 @@
         function nextMonth() {
             if (state.pending === 'branch') return showBranch();
             if (state.pending === 'sign') return showSign();
+            if (state.pending === 'exam') return examStep();
             if (state.pending === 'end') return showVictory();
 
             state.month++;
@@ -1476,7 +1600,7 @@
                 btn.className = 'choice-btn w-full text-right p-4 rounded-xl text-sm md:text-base font-medium text-slate-200';
                 btn.innerHTML = `<span class="text-amber-400 font-bold mr-1">${i + 1}.</span> `;
                 btn.appendChild(document.createTextNode(o.text));
-                btn.onclick = () => resolveEvent(o.apply);
+                btn.onclick = () => (o.direct ? o.direct() : resolveEvent(o.apply));
                 container.appendChild(btn);
             });
             showView('view-event');
@@ -1583,6 +1707,156 @@
                     }
                 ]
             );
+        }
+
+        // --- ועדת קצונה: 3 שאלות מתקדמות בין נגד למב״ס ---
+        const OFFICER_QUESTIONS = [
+            {
+                title: 'האחריות על הטעות',
+                desc: 'חוקר צעיר בצוות שלך טעה בהגשת מסמך והתיק נפגע. מפקד הבסיס דורש "אשם" עוד היום. מה אתה עושה?',
+                choices: [
+                    c('לקחת אחריות פיקודית, לערוך תחקיר מקצועי שאינו מאשים ולתקן את התהליך.', true, 'תשובת קצין. מפקד אחראי על הצוות, ותחקיר נועד ללמוד ולא להעניש.'),
+                    c('למסור את שם החוקר כדי שהנושא ייסגר מהר.', false, 'הפקרת הכפוף לך תהרוס את האמון בצוות, והבעיה בתהליך תישאר.'),
+                    c('להסתיר את הטעות כדי שלא יהיה כתם על היחידה.', false, 'הסתרה הופכת טעות מקצועית לבעיית יושרה.')
+                ]
+            },
+            {
+                title: 'שני תיקים, צוות אחד',
+                desc: 'בבוקר אחד מגיעים שני תיקים דחופים, ויש מספיק חוקרים רק לאחד: פגיעה בחיילת ותיק ציוד שנגנב. מה עושה?',
+                choices: [
+                    c('לתעדף לפי הסיכון לאדם, לתעד את נימוק ההחלטה ולדווח לממונה על המחסור בכוח אדם.', true, 'תשובת קצין. ההחלטה מנומקת, מתועדת והבעיה המבנית מגיעה למי שיכול לפתור אותה.'),
+                    c('לתעדף את התיק שמפקד בכיר התעניין בו.', false, 'סדר עדיפויות לפי מי שפנה אליך הוא כשל פיקודי.'),
+                    c('לפצל את הצוות לחצאים כדי "לתת מענה" לשניהם.', false, 'פיצול כזה פוגע באיכות של שני התיקים.')
+                ]
+            },
+            {
+                title: 'חוקר שחוק',
+                desc: 'החוקר הכי טוב שלך עובד 14 שעות ביום, והטעויות שלו מתרבות. מה עושה?',
+                choices: [
+                    c('לשוחח איתו, להקל על העומס, להעביר חלק מהתיקים ולבדוק את התיקים האחרונים שטיפל בהם.', true, 'תשובת קצין. דואגים לאדם ומגנים על איכות העבודה בו זמנית.'),
+                    c('להמשיך כרגיל, הוא הכי טוב ויודע להתמודד.', false, 'עומס יתר הוא סיכון מקצועי ואנושי, גם למצטיינים.'),
+                    c('להעיר לו בפומבי בישיבת הצוות כדי להעביר מסר.', false, 'הערה פומבית פוגעת באמון ולא פותרת את מקור הבעיה.')
+                ]
+            },
+            {
+                title: 'חשד כלפי מפקד',
+                desc: 'עולה חשד נגד מפקד בכיר, שהוא גם חבר ותיק שלך. מה עושה?',
+                choices: [
+                    c('להימנע מכל מגע חקירתי, להעביר מיד לגורם המוסמך מחוץ לשרשרת שלך ולא להתריע בפני המפקד.', true, 'תשובת קצין. ניגוד עניינים פותר רק באמצעות ניתוק מוחלט.'),
+                    c('לרמוז לו בשיחה פרטית שכדאי לו להיזהר.', false, 'אזהרה מוקדמת של חשוד היא שיבוש חקירה.'),
+                    c('לבדוק לבד בשקט כדי לא להלבין את שמו.', false, 'בדיקה עצמאית ללא סמכות בניגוד עניינים פוגעת בראיות ובמפקד כאחד.')
+                ]
+            },
+            {
+                title: 'קיצור דרך לנתונים',
+                desc: 'ההנהגה דורשת לשפר את מדד סגירת התיקים ב־20%. מישהו מציע לסגור תיקים "שוליים" בלי חקירה מלאה. מה עושה?',
+                choices: [
+                    c('לסרב לקצר נהלים, להציע ייעול בתוך הנוהל ולהציג נתונים אמיתיים.', true, 'תשובת קצין. מדד לא עומד מעל האמת.'),
+                    c('להסכים, מדד זה מדד.', false, 'סגירת תיקים בלי חקירה היא פגיעה בציבור ובמתלוננים.'),
+                    c('לסגור את הקלים ולהשאיר את הקשים בלי תיעוד.', false, 'הסתרת תיקים פתוחים מעוותת את התמונה בפני הפיקוד.')
+                ]
+            },
+            {
+                title: 'דליפה בצוות',
+                desc: 'פרטי חקירה הגיעו לעיתון, ואתה חושד בחוקר אחד בצוות. מה עושה?',
+                choices: [
+                    c('לבקש בדיקה מסודרת דרך הגורמים המוסמכים ולא להאשים בלי ראיות.', true, 'תשובת קצין. חשד איננו הוכחה, ובדיקה מקצועית מגינה על כולם.'),
+                    c('להכריז בישיבה שמי שדלף מתבקש להודות.', false, 'האשמה פומבית פוגעת בצוות כולו ולא מביאה ראיות.'),
+                    c('להרחיק את החוקר מהצוות בלי דיון.', false, 'הענשה בלי בירור היא פגיעה בהליך הוגן.')
+                ]
+            },
+            {
+                title: 'כלי בינה מלאכותית חדש',
+                desc: 'חברה מציעה כלי בינה מלאכותית שמנתח אלפי הודעות מטלפונים של חשודים בדקות. הוא מרשים, אבל אף אחד לא יודע בדיוק איך הוא מגיע למסקנות. מה עושה?',
+                choices: [
+                    c('לבחון אותו משפטית ואבטחתית, להפעיל פיילוט מבוקר ולוודא שאדם מאמת כל ממצא לפני שהוא נכנס לתיק.', true, 'תשובת קצין. טכנולוגיה מסייעת לחוקר ואינה מחליפה אותו.'),
+                    c('להפעיל מיד בכל התיקים, זה חוסך שבועות.', false, 'כלי שאין לו הסבר ובקרה עלול לייצר ראיות שלא יעמדו בבית הדין.'),
+                    c('להשתמש בו "לכיוון" בלבד ולא לציין זאת בתיק.', false, 'שימוש שלא מתועד בתיק הוא הסתרה מהסנגוריה ומבית הדין.')
+                ]
+            },
+            {
+                title: 'משוב מלמטה',
+                desc: 'חוקר זוטר מעיר לך בעדינות שהוראה שנתת בתחקיר שגויה. מה עושה?',
+                choices: [
+                    c('לבדוק, להודות בטעות אם היא נכונה, לתקן ולעודד דיווחים כאלה בצוות.', true, 'תשובת קצין. מפקד שמקבל ביקורת בונה צוות שמדווח על בעיות בזמן.'),
+                    c('להסביר לו שהדרגה שלו לא מאפשרת להעיר.', false, 'השתקת ביקורת מלמטה מבטיחה שתשמע על הטעות הבאה רק מבית הדין.'),
+                    c('להתעלם ולתקן בשקט בלי להודות.', false, 'תיקון סמוי מלמד את הצוות להסתיר טעויות.')
+                ]
+            }
+        ];
+
+        function examStep() {
+            if (!state.exam) {
+                const ids = shuffle(OFFICER_QUESTIONS.map((_, i) => i)).slice(0, 3);
+                state.exam = { ids: ids, idx: 0, correct: 0 };
+                saveGame(true);
+                return showEvent(
+                    'ועדת קצונה 🎖️',
+                    `${state.name}, סיימת את דרגת הנגד, ופיקוד היחידה החליט שנגד עם הניסיון שלך לא אמור להישאר נגד. לפני שמעלים אותך לדרגת מב״ס, ועדת הקצונה שואלת שלוש שאלות על פיקוד, שיקול דעת ושינויים חדשים בעבודה.\n\nשאלות מתקדמות, בלי חזרה אחורה. צריך לפחות שתי תשובות נכונות כדי לעבור.`,
+                    [{ text: 'אני מוכן. בואו נתחיל.', direct: examStep }]
+                );
+            }
+            const ex = state.exam;
+            if (ex.idx >= 3) return finishExam();
+            const q = OFFICER_QUESTIONS[ex.ids[ex.idx]];
+            showEvent(
+                `שאלון קצונה ${ex.idx + 1}/3: ${q.title}`,
+                q.desc,
+                shuffle(q.choices.slice()).map(ch => ({ text: ch.text, direct: () => answerExam(ch) }))
+            );
+        }
+
+        function answerExam(ch) {
+            const ex = state.exam;
+            ex.idx++;
+            if (ch.ok) ex.correct++;
+            saveGame(true);
+            showFeedback({
+                icon: ch.ok ? '✅' : '❌',
+                title: ch.ok ? 'תשובת קצין' : 'שיקול דעת לא מספק',
+                good: ch.ok,
+                text: ch.fb,
+                impact: `<div class="text-slate-300">תשובות נכונות: ${ex.correct} מתוך ${ex.idx}</div>`
+            });
+        }
+
+        function finishExam() {
+            const ex = state.exam;
+            const pass = ex.correct >= 2;
+            state.exam = null;
+            state.pending = null;
+            let res;
+            if (pass) {
+                state.rankId = 'basecmd';
+                state.path = 'sgt-off';
+                state.promotions++;
+                state.xp = 0;
+                state.trust += 10;
+                state.prof += 10;
+                res = {
+                    icon: '🎖️', title: 'עברת את ועדת הקצונה', good: true,
+                    text: `${ex.correct} מתוך 3. הוועדה החליטה שנגד כמוך מתאים לפיקוד. אתה עובר ישר לדרגת מב״ס, ודילגת על קורס הקצינים (הטקסים, אגב, יתקיימו בכל זאת).`,
+                    impact: `<div class="text-green-400">+10% אמון פיקוד</div>
+                             <div class="text-blue-300">+10 מקצוענות</div>
+                             ${banner('🎖️ דרגה חדשה: מב״ס')}
+                             <div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}</div>`
+                };
+            } else {
+                state.trust -= 10;
+                state.xp = Math.round(xpNeeded() * 0.5);
+                res = {
+                    icon: '📋', title: 'הוועדה מבקשת שתחזור', good: false,
+                    text: `${ex.correct} מתוך 3. הוועדה ביקשה שתצבור עוד ניסיון ותחזור. נגד מצטיין אתה, קצין עדיין לא.`,
+                    impact: `<div class="text-red-400">-10% אמון פיקוד</div>
+                             <div class="text-slate-300 text-xs mt-1">פס ה-XP חזר לחצי. כשיתמלא שוב תוכל לנסות שוב.</div>`
+                };
+            }
+            updateUI();
+            if (state.trust <= 0) {
+                return showGameOver('איבדת לחלוטין את אמון הפיקוד והפרקליטות. חוקר שלא סומכים עליו לא יכול לנהל תיקים.');
+            }
+            saveGame(true);
+            showFeedback(res);
         }
 
         // --- מסך סיום מוצלח ---
