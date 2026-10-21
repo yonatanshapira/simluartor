@@ -124,6 +124,10 @@
         #game-container { padding-bottom: env(safe-area-inset-bottom); }
         .safe-pad { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
 
+        .gender-btn { border: 1px solid #16a34a; color: #22c55e; background: rgba(5, 46, 22, 0.3); transition: all 0.2s; min-height: 48px; }
+        .gender-btn.sel { background: #16a34a; color: #000; font-weight: 700; box-shadow: 0 0 8px rgba(34, 197, 94, 0.6); }
+        .gender-btn.flash { border-color: #ef4444; }
+
         /* ===== מצב בהיר (Light mode) ===== */
         html { color-scheme: dark; }
         [data-theme="light"] { color-scheme: light; }
@@ -210,6 +214,13 @@
             <div id="terminal-output" class="flex flex-col gap-3 text-sm md:text-base terminal-glow mb-8 min-h-[120px]"></div>
 
             <div id="login-section" class="hidden flex-col gap-6 w-full">
+                <div class="flex flex-col gap-2">
+                    <span class="text-sm md:text-base terminal-glow">> בחר מגדר:</span>
+                    <div id="gender-group" class="flex gap-3">
+                        <button type="button" data-g="m" onclick="selectGender('m')" class="gender-btn flex-1 py-3 rounded-sm terminal-font">👨 בן</button>
+                        <button type="button" data-g="f" onclick="selectGender('f')" class="gender-btn flex-1 py-3 rounded-sm terminal-font">👩 בת</button>
+                    </div>
+                </div>
                 <div class="flex flex-col gap-2">
                     <label for="investigator-name" class="text-sm md:text-base terminal-glow">> הזן שם חוקר מורשה:</label>
                     <div class="relative">
@@ -588,7 +599,7 @@
             const entry = {
                 ts: Date.now(),
                 outcome: outcome,
-                rank: RANKS[d.rankId].name,
+                rank: rankLabel(d.rankId),
                 path: d.path || null,
                 months: d.month,
                 trust: d.trust,
@@ -661,8 +672,18 @@
                 return;
             }
 
+            const stored = getPlayer(nameInput);
+            const g = pendingGender || (stored && stored.gender) || null;
+            if (!g) {
+                const grp = document.getElementById('gender-group');
+                grp.querySelectorAll('.gender-btn').forEach(b => b.classList.add('flash'));
+                setTimeout(() => grp.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('flash')), 600);
+                return;
+            }
             state.name = nameInput;
-            document.getElementById('welcome-text').innerText = `ברוך שובך, חוקר ${nameInput}.`;
+            state.gender = g;
+            updatePlayer(nameInput, p => { p.gender = g; });
+            document.getElementById('welcome-text').innerText = gf(`ברוך שובך, חוקר ${nameInput}.`);
             document.getElementById('intro-screen').classList.add('fade-out');
 
             setTimeout(() => {
@@ -671,6 +692,79 @@
 
                 setTimeout(afterLogin, 1500);
             }, 500);
+        }
+
+        // ==========================================
+        // 1.0b מגדר: התאמת לשון (בן / בת)
+        // ==========================================
+        let pendingGender = null;
+
+        function selectGender(g) {
+            pendingGender = g;
+            document.querySelectorAll('#gender-group .gender-btn').forEach(b => {
+                b.classList.toggle('sel', b.getAttribute('data-g') === g);
+            });
+        }
+
+        // החלפות לשון נקבה. החלפות ספציפיות קודם, והכללית ("אתה" -> "את") אחרונה
+        const F_PAIRS = [
+            ['מדריך החוקר', 'מדריך החוקרת'],
+            ['היסטוריית חוקר', 'היסטוריית חוקרת'],
+            ['תיק חוקר', 'תיק חוקרת'],
+            ['חוקר:', 'חוקרת:'],
+            ['לפי שם החוקר', 'לפי שם החוקרת'],
+            ['הזן שם חוקר מורשה', 'הזן שם חוקרת מורשית'],
+            ['שלום החוקר ', 'שלום החוקרת '],
+            ['ברוך שובך, חוקר', 'ברוכה שובך, חוקרת'],
+            ['אתה חוקר קצין', 'את חוקרת קצין'],
+            ['אתה מכין', 'את מכינה'],
+            ['אתה מזהיר', 'את מזהירה'],
+            ['אתה לא בטוח', 'את לא בטוחה'],
+            ['ואתה נשאר', 'ואת נשארת'],
+            ['אתה אובייקטיבי', 'את אובייקטיבית'],
+            ['אתה מוצא', 'את מוצאת'],
+            ['שאתה שאפתן', 'שאת שאפתנית'],
+            ['ואתה חושד', 'ואת חושדת'],
+            ['אתה עובר ישר', 'את עוברת ישר'],
+            ['הגעת ראשון', 'הגעת ראשונה'],
+            ['אני מוכן.', 'אני מוכנה.'],
+            ['אני מעדיף להשתחרר', 'אני מעדיפה להשתחרר'],
+            ['"חושב יותר מדי"', '"חושבת יותר מדי"'],
+            ['שנגד עם הניסיון שלך לא אמור להישאר נגד', 'שחוקרת עם הניסיון שלך לא אמורה להישאר נגד'],
+            ['שנגד כמוך מתאים לפיקוד', 'שחוקרת כמוך מתאימה לפיקוד'],
+            ['נגד מצטיין אתה, קצין עדיין לא', 'נגד מצטיינת את, קצינה עדיין לא'],
+            ['עד מפקד מצ״ח', 'עד מפקדת מצ״ח'],
+            ['מפקד מצ״ח!', 'מפקדת מצ״ח!'],
+            ['חוקר שלא סומכים עליו לא יכול לנהל תיקים', 'חוקרת שלא סומכים עליה לא יכולה לנהל תיקים'],
+            ['חוקר עם רקורד כזה', 'חוקרת עם רקורד כזה'],
+            ['תרצה לשרת', 'תרצי לשרת'],
+            ['אתה', 'את']
+        ];
+
+        function gf(str) {
+            if (state.gender !== 'f' || typeof str !== 'string') return str;
+            for (const [a, b] of F_PAIRS) str = str.split(a).join(b);
+            return str;
+        }
+
+        // דרגות עם צורת נקבה
+        const RANK_F = { deputy: 'סגנית מפקד בסיס', chief: 'מפקדת מצ״ח' };
+        function rankLabel(id) {
+            return (state.gender === 'f' && RANK_F[id]) ? RANK_F[id] : RANKS[id].name;
+        }
+
+        // התאמת טקסטים סטטיים במסכים (מופעל פעם אחת אחרי הכניסה)
+        function applyGenderToStatic() {
+            if (state.gender !== 'f') return;
+            const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            const nodes = [];
+            while (w.nextNode()) nodes.push(w.currentNode);
+            nodes.forEach(n => {
+                const par = n.parentNode && n.parentNode.nodeName;
+                if (par === 'SCRIPT' || par === 'STYLE') return;
+                const v = gf(n.nodeValue);
+                if (v !== n.nodeValue) n.nodeValue = v;
+            });
         }
 
         window.onload = () => {
@@ -717,6 +811,7 @@
         }
 
         function afterLogin() {
+            applyGenderToStatic();
             document.getElementById('success-message').classList.add('hidden');
             document.getElementById('intro-screen').classList.add('hidden');
             document.getElementById('scanlines-overlay').classList.add('hidden');
@@ -734,7 +829,7 @@
         }
 
         function showProfile(p) {
-            document.getElementById('profile-title').textContent = `תיק חוקר: ${state.name}`;
+            document.getElementById('profile-title').textContent = gf(`תיק חוקר: ${state.name}`);
             document.getElementById('profile-sub').textContent = p.history.length
                 ? `${p.history.length} קריירות בהיסטוריה`
                 : 'עדיין אין קריירות בהיסטוריה';
@@ -744,7 +839,7 @@
             if (p.save) {
                 const d = p.save.data;
                 document.getElementById('profile-save-text').textContent =
-                    `${RANKS[d.rankId].name} · ${d.base || 'טרם שובצת'} · חודש ${d.month} · נשמר ב־${fmtDate(p.save.savedAt)}`;
+                    `${rankLabel(d.rankId)} · ${d.base || 'טרם שובצת'} · חודש ${d.month} · נשמר ב־${fmtDate(p.save.savedAt)}`;
                 box.classList.remove('hidden');
                 cont.classList.remove('hidden');
             } else {
@@ -757,7 +852,7 @@
         function startNewCareer() {
             const p = getPlayer(state.name);
             if (p && p.save) recordFrom(p.save.data, 'abandoned');
-            Object.assign(state, newState(state.name));
+            Object.assign(state, newState(state.name, state.gender));
             usedIds.clear();
             document.getElementById('profile-screen').classList.add('hidden');
             showBriefing();
@@ -768,7 +863,7 @@
             if (!p || !p.save) return;
             const d = p.save.data;
             const { usedIds: u, awaitingNext, currentId, ...rest } = d;
-            Object.assign(state, newState(state.name), rest, { current: null });
+            Object.assign(state, newState(state.name, state.gender), rest, { current: null, gender: state.gender });
             usedIds.clear();
             (u || []).forEach(i => usedIds.add(i));
 
@@ -900,7 +995,7 @@
             assignScreen.classList.add('flex', 'fade-in');
 
             const dialogueBox = document.getElementById('assignment-dialogue');
-            const text = `שלום החוקר ${playerName}! סיימת קורס חוקרים בהצטיינות וכעת הגעת לשטח. באיזה בסיס תרצה לשרת?`;
+            const text = gf(`שלום החוקר ${playerName}! סיימת קורס חוקרים בהצטיינות וכעת הגעת לשטח. באיזה בסיס תרצה לשרת?`);
 
             let i = 0;
             dialogueBox.textContent = '';
@@ -1297,9 +1392,10 @@
         // ==========================================
         // 3. מצב המשחק
         // ==========================================
-        function newState(name) {
+        function newState(name, gender) {
             return {
                 name: name || '',
+                gender: gender || 'm',
                 base: '',
                 month: 1,
                 rankId: 'private',
@@ -1361,10 +1457,10 @@
         function nextRankLabel() {
             const n = RANKS[state.rankId].next;
             if (n === 'BRANCH') return 'פרשת דרכים';
-            if (n === 'SIGN') return RANKS.ssg.name;
+            if (n === 'SIGN') return rankLabel('ssg');
             if (n === 'EXAM') return 'ועדת קצונה 🎖️';
             if (n === 'END') return 'סיום הקריירה 🏁';
-            return RANKS[n].name;
+            return rankLabel(n);
         }
 
         function pickOtherBase() {
@@ -1382,7 +1478,7 @@
             document.getElementById('ui-base').textContent = state.base;
             document.getElementById('ui-month').innerText = state.month;
             document.getElementById('ui-diff').innerText = state.promotions + 1;
-            document.getElementById('ui-rank').innerText = rank.name;
+            document.getElementById('ui-rank').innerText = rankLabel(state.rankId);
 
             const xpPct = Math.min(100, Math.round(state.xp / need * 100));
             document.getElementById('ui-xp-val').innerText = `${state.xp}/${need}`;
@@ -1431,8 +1527,8 @@
             state.current = q;
             const L = LEVELS[q.level];
 
-            document.getElementById('scenario-title').innerText = q.title;
-            document.getElementById('scenario-desc').innerText = q.desc;
+            document.getElementById('scenario-title').innerText = gf(q.title);
+            document.getElementById('scenario-desc').innerText = gf(q.desc);
 
             const badge = document.getElementById('scenario-level');
             badge.className = 'inline-block text-xs px-2 py-1 rounded border font-bold mb-3 ' + L.cls;
@@ -1445,7 +1541,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'choice-btn w-full text-right p-4 rounded-xl text-sm md:text-base font-medium text-slate-200';
                 btn.innerHTML = `<span class="text-blue-400 font-bold mr-1">${index + 1}.</span> `;
-                btn.appendChild(document.createTextNode(choice.text));
+                btn.appendChild(document.createTextNode(gf(choice.text)));
                 btn.onclick = () => processChoice(choice);
                 container.appendChild(btn);
             });
@@ -1456,10 +1552,10 @@
         function showFeedback(res) {
             document.getElementById('feedback-icon').innerText = res.icon;
             const t = document.getElementById('feedback-title');
-            t.innerText = res.title;
+            t.innerText = gf(res.title);
             t.className = 'text-xl md:text-2xl font-bold mb-4 ' + (res.good ? 'text-green-400' : 'text-red-400');
-            document.getElementById('feedback-text').innerText = res.text;
-            document.getElementById('feedback-impact').innerHTML = res.impact;
+            document.getElementById('feedback-text').innerText = gf(res.text);
+            document.getElementById('feedback-impact').innerHTML = gf(res.impact);
 
             const btn = document.getElementById('next-btn');
             if (state.pending === 'end') btn.innerText = 'לסיכום הקריירה 🏆';
@@ -1494,12 +1590,12 @@
             }
             if (n === 'END') {
                 state.pending = 'end';
-                return banner(`🏆 פס ה-XP התמלא בדרגת ${cur.name}!`);
+                return banner(`🏆 פס ה-XP התמלא בדרגת ${rankLabel(state.rankId)}!`);
             }
 
             state.rankId = n;
             state.promotions++;
-            let html = banner(`🎖️ קידום! דרגה חדשה: ${RANKS[n].name}`);
+            let html = banner(`🎖️ קידום! דרגה חדשה: ${rankLabel(n)}`);
             html += `<div class="text-red-300 text-xs mt-1">⚠️ רמת קושי ${state.promotions + 1}: הדרגה הבאה תדרוש יותר XP</div>`;
 
             // סמ״ר -> נגד בלי חתימת קבע: מעבירים בסיס
@@ -1515,7 +1611,7 @@
             const q = state.current;
             const L = LEVELS[q.level];
             const rankId = state.rankId;
-            const rankName = RANKS[rankId].name;
+            const rankName = rankLabel(rankId);
             let impact = '';
             let icon, title;
 
@@ -1572,7 +1668,7 @@
 
         function showGameOver(reason) {
             recordFrom(state, 'fired', reason);
-            document.getElementById('gameover-text').innerText = reason;
+            document.getElementById('gameover-text').innerText = gf(reason);
             showView('view-gameover');
         }
 
@@ -1592,15 +1688,15 @@
         }
 
         function showEvent(title, desc, options) {
-            document.getElementById('event-title').innerText = title;
-            document.getElementById('event-desc').innerText = desc;
+            document.getElementById('event-title').innerText = gf(title);
+            document.getElementById('event-desc').innerText = gf(desc);
             const container = document.getElementById('event-choices');
             container.innerHTML = '';
             options.forEach((o, i) => {
                 const btn = document.createElement('button');
                 btn.className = 'choice-btn w-full text-right p-4 rounded-xl text-sm md:text-base font-medium text-slate-200';
                 btn.innerHTML = `<span class="text-amber-400 font-bold mr-1">${i + 1}.</span> `;
-                btn.appendChild(document.createTextNode(o.text));
+                btn.appendChild(document.createTextNode(gf(o.text)));
                 btn.onclick = () => (o.direct ? o.direct() : resolveEvent(o.apply));
                 container.appendChild(btn);
             });
@@ -1864,13 +1960,13 @@
         function showVictory() {
             state.pending = null;
             const isChief = state.rankId === 'chief';
-            const rankName = RANKS[state.rankId].name;
+            const rankName = rankLabel(state.rankId);
             recordFrom(state, 'won');
 
-            document.getElementById('victory-title').innerText = isChief ? 'מפקד מצ״ח!' : 'נגד מצ״ח מהשורה הראשונה';
-            document.getElementById('victory-text').innerText = isChief
+            document.getElementById('victory-title').innerText = gf(isChief ? 'מפקד מצ״ח!' : 'נגד מצ״ח מהשורה הראשונה');
+            document.getElementById('victory-text').innerText = gf(isChief
                 ? `${state.name}, עשית את כל הדרך מטוראי ועד לראש היחידה. בכל חדר חקירות בצבא מדברים עליך, בעיקר בלחש.`
-                : `${state.name}, עשית את כל הדרך מטוראי ועד נגד. אין תיק שלא עבר דרכך ואין חוקר צעיר שלא ביקש ממך עצה (בדרך כלל באמצע התיק).`;
+                : `${state.name}, עשית את כל הדרך מטוראי ועד נגד. אין תיק שלא עבר דרכך ואין חוקר צעיר שלא ביקש ממך עצה (בדרך כלל באמצע התיק).`);
             document.getElementById('victory-stats').innerHTML =
                 `דרגה סופית: <b class="text-white">${rankName}</b><br>
                  חודשי שירות: ${state.month}<br>
